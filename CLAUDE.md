@@ -2,12 +2,14 @@
 
 Switchboard is a local telephony sandbox: a fake phone carrier plus a fake
 far-end phone plus an admin panel, so developers can place and receive real audio
-calls on localhost with no carrier account. Read [README.md](documentation/README.md) for
-the concept, [architecture.md](documentation/architecture.md) for how it fits
-together, [data-model.md](documentation/data-model.md) for the schema,
-[roadmap.md](documentation/roadmap.md) for the milestone order, and
-[implementation.md](documentation/implementation.md) for the build sequence and
-open decisions.
+calls on localhost with no carrier account. Documentation is split into
+[documentation/user/](documentation/user/README.md) (using the tool) and
+[documentation/dev/](documentation/dev/README.md) (building it). Read
+[architecture.md](documentation/dev/architecture.md) for how it fits together,
+[data-model.md](documentation/dev/data-model.md) for the schema,
+[roadmap.md](documentation/dev/roadmap.md) for the milestone order, and
+[implementation.md](documentation/dev/implementation.md) for the feature-by-feature
+build plan and open decisions.
 
 Acronyms, expanded once here: SIP is the Session Initiation Protocol (call
 signaling). RTP is the Real-time Transport Protocol (audio). ARI is the Asterisk
@@ -54,9 +56,12 @@ Rules:
 - Database: SQLite via `better-sqlite3`, queried through Kysely (type-safe SQL).
   Hand-written TypeScript migrations run at boot. No object-relational mapper.
   Only repository modules touch the database.
-- Web: Vite + React + TypeScript. Server data via TanStack Query; the SIP.js call
-  session via a Zustand store; local UI via `useState`. UI is Tailwind with Radix
-  headless primitives (shadcn/ui). Softphone uses SIP.js over WSS with WebRTC.
+- Web: Vite + React + TypeScript. Routing via TanStack Router (file-based, typed
+  search params); server data via TanStack Query; the SIP.js call session via a
+  Zustand store; local UI via `useState`. UI is Tailwind with Radix headless
+  primitives (shadcn/ui). Softphone uses SIP.js over WSS with WebRTC. The shell is
+  a left sidebar with contextual section tabs (see ux.md). Do not hand-edit
+  `routeTree.gen.ts`.
 - Engine: Asterisk (PJSIP, ARI, WebRTC), one container, controlled at runtime.
 - ARI client: `ari-client`.
 - Tests: Vitest.
@@ -80,9 +85,9 @@ Rules:
 
 ## Networking and media
 
-The media/NAT path is the project's biggest risk (see architecture.md F5 and
-implementation.md M0). When touching engine config, `docker-compose.yml`, or RTP
-settings:
+The media/NAT path is the project's biggest risk (see architecture.md and the M1
+walking skeleton in implementation.md). When touching engine config,
+`docker-compose.yml`, or RTP settings:
 
 - Keep the bounded RTP port range and the explicit advertised address in sync
   between `docker-compose.yml` and the engine's PJSIP config.
@@ -91,12 +96,60 @@ settings:
 - Any change here must be re-verified with a real two-way-audio call, not just a
   passing unit test.
 
-## Workflow
+## Testing (not optional)
 
-- Build in milestone order (M0 to M6 in roadmap.md and implementation.md). M0
-  (clean two-way audio) must work before dashboard features.
+This project is built with AI assistance, so tests are the primary check that
+generated code does what it should.
+
+- Every change ships with its tests. No "add tests later."
+- 100% coverage is enforced on the TypeScript packages (`apps/server`,
+  `packages/shared`, `packages/cli`, and the logic in `apps/web`) via Vitest
+  statement, branch, function, and line thresholds set to 100. CI fails below
+  100%. Do not lower the global threshold to make a change pass; isolate the
+  untestable seam and mark it with a one-line `istanbul ignore` reason instead.
+- The engine and media paths (Asterisk, RTP, WebRTC) are proven by integration
+  tests that run a real engine, not by a coverage number.
 - A change to call handling, routing, or media is not "done" until exercised with
   a real call. Unit tests do not prove audio flows.
+
+## Documentation (document as you build)
+
+Everything, developer-facing or user-facing, is documented in the same change that
+builds it, never in a follow-up. A feature is not done until its docs exist.
+
+- Developer-facing behavior goes in [documentation/dev/](documentation/dev/).
+- Any user-facing capability goes in [documentation/user/](documentation/user/) as
+  a first-class, example-driven guide. User docs are a priority, not an
+  afterthought: every user-facing feature ships with a guide that includes
+  runnable examples (dashboard steps, `curl`, CLI, or Compose snippets).
+- Each feature in implementation.md carries a Docs step; treat it as part of the
+  definition of done alongside its tests.
+
+## Packaging and deployment
+
+Switchboard ships as Docker images and is run with Docker Compose from day one.
+
+- Three images: `switchboard-engine` (Asterisk), `switchboard-api` (the Node
+  control plane), and `switchboard-web` (the static React dashboard served by
+  nginx). All three have a Dockerfile from the first milestone, not bolted on at
+  release.
+- `switchboard-web` is the browser entry point; its nginx reverse-proxies `/api`
+  and the event WebSocket to `switchboard-api`, so the browser stays single-origin
+  and no cross-origin configuration is needed.
+- The canonical way to run the project, in development and for users, is
+  `docker compose up` using the `docker-compose.yml` at the repository root. Keep
+  it working at every milestone.
+- The API and web images are multi-stage builds (install, build, then a slim
+  runtime stage: Node slim for the API, nginx for the web). Keep images small and
+  pin base versions.
+- CI builds all three images; release publishes them.
+
+## Workflow
+
+- Build in milestone order (M1 to M5 in roadmap.md and implementation.md). The
+  M1 walking skeleton (clean two-way audio between two browser tabs) must work
+  before any trunk, number, or dashboard feature. Generating code fast does not
+  reduce the media and network-address-translation risk.
 - Update implementation.md's decisions log when a Decision (D1, D2, naming) is
   resolved.
 

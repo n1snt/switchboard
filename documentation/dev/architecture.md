@@ -22,7 +22,8 @@ is the international standard format for phone numbers, for example
 
 ## Components
 
-Switchboard is two containers.
+Switchboard is three containers: the engine, the control-plane API, and the web
+dashboard.
 
 ### 1. `switchboard-engine` (Asterisk)
 
@@ -41,22 +42,33 @@ effort and the wrong place to spend energy for a developer tool. FreeSWITCH, or 
 combination of Kamailio and rtpengine, are viable alternatives, but Asterisk
 gives the most working behavior out of the box.
 
-### 2. `switchboard-app` (Node.js with TypeScript, plus a React with TypeScript frontend)
+### 2. `switchboard-api` (Node.js control plane, TypeScript)
 
-This is the part a developer interacts with. It bundles three things.
+This is the control plane: a REST (Representational State Transfer) application
+programming interface plus a WebSocket event stream, backed by SQLite so there is
+nothing external to install. It translates dashboard actions into engine
+configuration over ARI and reads call state back out. It is the only component
+that talks to the engine and the only writer to the database.
+
+Because the first version is single-user on localhost, it binds to the local
+loopback address `127.0.0.1` and does not implement authentication.
+
+### 3. `switchboard-web` (React dashboard and softphone, TypeScript)
+
+This is the part a developer looks at, a static single-page application served by
+a small web server (nginx). It bundles two things.
 
 - The admin dashboard: create trunks and numbers, view and copy credentials,
   define routes, and watch live calls.
 - The web softphone: the browser dial pad that plays the far-end human. It talks
   directly to the engine over a secure WebSocket for audio, using the SIP.js
   library.
-- The control plane: a REST (Representational State Transfer) application
-  programming interface plus a WebSocket event stream, backed by SQLite so there
-  is nothing external to install. It translates dashboard actions into engine
-  configuration and reads call state back out.
 
-Because the first version is single-user on localhost, the application binds to
-the local loopback address `127.0.0.1` and does not implement authentication.
+To keep the browser on a single origin (and avoid cross-origin configuration),
+`switchboard-web`'s server reverse-proxies control-plane requests (the REST API
+under `/api` and the WebSocket event stream) to `switchboard-api`. The alternative
+is a configured API base URL plus cross-origin resource sharing on the API; the
+reverse proxy is simpler for the browser.
 
 ### Container diagram
 
@@ -66,18 +78,18 @@ the local loopback address `127.0.0.1` and does not implement authentication.
   |                                                                   |
   |   Browser                                                         |
   |   +---------------------------+                                   |
-  |   |  Switchboard web app      |                                   |
-  |   |  - admin dashboard        |  REST + WebSocket (control/events)|
-  |   |  - web softphone (SIP.js) |----------------------+            |
-  |   +------------+--------------+                       |            |
-  |                |  secure WebSocket (SIP + audio)      |            |
-  |                v                                      v            |
-  |   +---------------------------+        +----------------------------+
-  |   |  switchboard-engine       |        |  switchboard-app           |
-  |   |  (Asterisk)               |<------>|  (Node.js control plane)   |
-  |   |  - SIP signaling          |  ARI   |  - REST API + WS events    |
-  |   |  - audio bridge           |        |  - SQLite store            |
-  |   |  - WebRTC endpoint        |        +----------------------------+
+  |   |  switchboard-web          |  REST + WebSocket (control/events)|
+  |   |  - admin dashboard        |--(nginx reverse-proxy /api,-----+ |
+  |   |  - web softphone (SIP.js) |    /events to switchboard-api)   | |
+  |   +------------+--------------+                                  | |
+  |                |  secure WebSocket (SIP + audio)                 v |
+  |                v                              +--------------------+|
+  |   +---------------------------+      ARI      |  switchboard-api    ||
+  |   |  switchboard-engine       |<------------->|  (Node.js control)  ||
+  |   |  (Asterisk)               |               |  - REST API + WS    ||
+  |   |  - SIP signaling          |               |  - SQLite store     ||
+  |   |  - audio bridge           |               +--------------------+|
+  |   |  - WebRTC endpoint        |                                    |
   |   +------------+--------------+                                    |
   |                | SIP over UDP/TCP/TLS + RTP audio                  |
   +----------------|--------------------------------------------------+
@@ -102,8 +114,9 @@ sending audio.
   the worst of the NAT problems.
 
 Getting a clean two-way-audio "hello world" is the real first risk of the
-project, ahead of any dashboard work. It is milestone zero in
-[roadmap.md](roadmap.md) for that reason.
+project, ahead of any dashboard work. For that reason it is the walking skeleton
+that opens the first milestone in [roadmap.md](roadmap.md), the acceptance gate
+before any feature work.
 
 ## Trust and credentials
 
