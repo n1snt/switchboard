@@ -6,3 +6,12 @@
 // redefines an entity or endpoint shape (see CLAUDE.md).
 
 export * from './version';
+export * from './schemas/common';
+export * from './schemas/trunk';
+export * from './schemas/number';
+export * from './schemas/route';
+export * from './schemas/call';
+export * from './schemas/fault-profile';
+export * from './schemas/settings';
+export * from './events';
+export * from './contract';
