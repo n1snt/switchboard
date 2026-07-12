@@ -52,7 +52,11 @@ Rules:
 - Server: Fastify. Routes implement a ts-rest contract from `packages/shared`;
   input is validated with the contract's Zod schemas.
 - API: REST, versioned under `/api/v1`. Additive changes stay in `v1`; a breaking
-  change mints `/api/v2`.
+  change mints `/api/v2`. The API is self-documenting: an OpenAPI 3 document
+  (generated from the ts-rest contract with `@ts-rest/open-api`) is served at
+  `/api/v1/openapi.json` and interactive Swagger UI at `/api/docs`. Write each
+  endpoint's summary, description, and examples in the contract, never in a
+  separate hand-maintained spec.
 - Database: SQLite via `better-sqlite3`, queried through Kysely (type-safe SQL).
   Hand-written TypeScript migrations run at boot. No object-relational mapper.
   Only repository modules touch the database.

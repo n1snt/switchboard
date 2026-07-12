@@ -67,6 +67,10 @@ These apply to every feature and are not repeated in each one.
   queries the database.
 - **API versioning**: every REST route is mounted under `/api/v1`. Additive
   changes stay in `v1`; a breaking change mints `/api/v2`.
+- **Self-documenting API**: the API serves an OpenAPI 3 document at
+  `/api/v1/openapi.json` and interactive Swagger UI at `/api/docs`, both generated
+  from the ts-rest contract so they never drift. Endpoint summaries, descriptions,
+  and examples are written in the contract as endpoints are added.
 - **Identifiers**: entity `id` values are short unique strings generated with
   `nanoid`. Timestamps are ISO 8601 strings stored as text.
 - **Errors**: a single Fastify error handler returns a consistent JSON shape
@@ -101,25 +105,26 @@ These apply to every feature and are not repeated in each one.
 
 ## Technology stack
 
-| Area             | Choice                                 | Note                                                                      |
-| ---------------- | -------------------------------------- | ------------------------------------------------------------------------- |
-| Runtime          | Node.js (LTS)                          | Battle-tested native modules and ARI libraries; runs TypeScript directly. |
-| Package manager  | pnpm (workspace)                       | Fast, disk-efficient, first-class monorepo support.                       |
-| Language         | TypeScript, strict mode                | Pure TypeScript, no JavaScript source, across every package.              |
-| Server framework | Fastify                                | Fast, plugin-based, built-in WebSocket support.                           |
-| API contract     | ts-rest, in `packages/shared`          | One typed REST contract types the Fastify routes and the client.          |
-| Validation       | Zod, in `packages/shared`              | Backs the ts-rest contract and validates all boundary input.              |
-| Database         | `better-sqlite3` + Kysely              | Type-safe SQL query builder; hand-written TypeScript migrations at boot.  |
-| Frontend build   | Vite + React + TypeScript              | Fast dev server, matches the workspace language.                          |
-| Routing          | TanStack Router                        | Type-safe routes and validated search params; pairs with TanStack Query.  |
-| Server state     | TanStack Query                         | Caching, mutations, and refetch for all REST data.                        |
-| Session state    | Zustand                                | One small store for the SIP.js call session and registration.             |
-| UI               | Tailwind + Radix (via shadcn/ui)       | Headless, accessible primitives styled in Tailwind.                       |
-| Softphone        | SIP.js                                 | Browser SIP over WSS with WebRTC audio.                                   |
-| Engine           | Asterisk (PJSIP, ARI, WebRTC)          | Single container, controlled at runtime. See Decision D1.                 |
-| ARI client       | `ari-client` (Node)                    | WebSocket event stream plus REST control of channels and bridges.         |
-| Tests            | Vitest                                 | Unit and integration tests across all packages.                           |
-| Lint / format    | ESLint (`eslint.config.ts`) + Prettier | Enforced in CI and pre-commit.                                            |
+| Area             | Choice                                   | Note                                                                      |
+| ---------------- | ---------------------------------------- | ------------------------------------------------------------------------- |
+| Runtime          | Node.js (LTS)                            | Battle-tested native modules and ARI libraries; runs TypeScript directly. |
+| Package manager  | pnpm (workspace)                         | Fast, disk-efficient, first-class monorepo support.                       |
+| Language         | TypeScript, strict mode                  | Pure TypeScript, no JavaScript source, across every package.              |
+| Server framework | Fastify                                  | Fast, plugin-based, built-in WebSocket support.                           |
+| API contract     | ts-rest, in `packages/shared`            | One typed REST contract types the Fastify routes and the client.          |
+| API docs         | OpenAPI (@ts-rest/open-api) + Swagger UI | Generated from the contract; interactive docs served at `/api/docs`.      |
+| Validation       | Zod, in `packages/shared`                | Backs the ts-rest contract and validates all boundary input.              |
+| Database         | `better-sqlite3` + Kysely                | Type-safe SQL query builder; hand-written TypeScript migrations at boot.  |
+| Frontend build   | Vite + React + TypeScript                | Fast dev server, matches the workspace language.                          |
+| Routing          | TanStack Router                          | Type-safe routes and validated search params; pairs with TanStack Query.  |
+| Server state     | TanStack Query                           | Caching, mutations, and refetch for all REST data.                        |
+| Session state    | Zustand                                  | One small store for the SIP.js call session and registration.             |
+| UI               | Tailwind + Radix (via shadcn/ui)         | Headless, accessible primitives styled in Tailwind.                       |
+| Softphone        | SIP.js                                   | Browser SIP over WSS with WebRTC audio.                                   |
+| Engine           | Asterisk (PJSIP, ARI, WebRTC)            | Single container, controlled at runtime. See Decision D1.                 |
+| ARI client       | `ari-client` (Node)                      | WebSocket event stream plus REST control of channels and bridges.         |
+| Tests            | Vitest                                   | Unit and integration tests across all packages.                           |
+| Lint / format    | ESLint (`eslint.config.ts`) + Prettier   | Enforced in CI and pre-commit.                                            |
 
 ## Build order at a glance
 
@@ -207,6 +212,11 @@ against.
   `faultsContract`, `settingsContract`) and compose into a root contract. Every
   endpoint declares method, path (under `/api/v1`), path params, query schema,
   body schema, and response schemas including the shared error shape.
+- Each endpoint also carries OpenAPI metadata: a `summary`, a `description`, and
+  example request and response values. This metadata is what makes the generated
+  OpenAPI document and Swagger UI (feature 4) readable, so it is written alongside
+  every endpoint, not later. Zod schemas use `.describe()` on fields so parameters
+  and models are self-documenting.
 - `src/index.ts`: re-export everything.
 
 **Details**: an example endpoint shape, for reference:
@@ -287,13 +297,31 @@ read and write a row through Kysely with full type-checking.
 - `server.ts`: load config, run migrations, build the app, listen, and wire signal
   handlers for graceful shutdown (close ARI, close the database, close Fastify).
 - `plugins/errors.ts`: the single error handler producing the shared error shape.
+- `plugins/openapi.ts`: generate an OpenAPI 3 document from the ts-rest contract
+  with `@ts-rest/open-api` (title, version, servers, and the endpoint metadata
+  from feature 2), serve it at `GET /api/v1/openapi.json`, and mount an interactive
+  Swagger UI at `GET /api/docs`. Because the document is generated from the single
+  contract, it is always in sync and grows automatically as endpoint features land,
+  with no separate maintenance. Users reach it through the `switchboard-web` proxy
+  as well as directly on the API.
+
+**Details**: the OpenAPI document and Swagger UI are live from this feature with
+just the health endpoint, and every later resource feature (trunks, numbers,
+routes, calls, faults, settings) appears in them automatically once its contract
+is added. Feature 28 hardens completeness and examples for public release.
 
 **Tests**: `fastify.inject` tests for health (200 with the expected body), an
-unknown route (404 in the error shape), and a validation failure (400 in the error
-shape). A config test that invalid environment values are rejected.
+unknown route (404 in the error shape), a validation failure (400 in the error
+shape), that `GET /api/v1/openapi.json` returns a valid OpenAPI 3 document whose
+paths match the contract, and that `GET /api/docs` serves the Swagger UI. A config
+test that invalid environment values are rejected.
 
-**Acceptance**: `pnpm --filter @switchboard/server dev` boots, migrates, and
-answers `GET /api/v1/health`.
+**Docs**: a user-guide note that the API is self-documenting, with the interactive
+Swagger UI at `/api/docs` and the raw spec at `/api/v1/openapi.json`.
+
+**Acceptance**: `pnpm --filter @switchboard/server dev` boots, migrates, answers
+`GET /api/v1/health`, serves the OpenAPI document, and renders Swagger UI at
+`/api/docs`.
 
 ### 5. Web skeleton
 
@@ -962,20 +990,33 @@ a delayed busy; a forced codec is honored; a CPS cap of 1 throttles a burst.
 
 ### 28. Public REST API
 
-**Goal**: the REST API covers everything the dashboard does, documented for
-external consumers.
+**Goal**: the REST API covers everything the dashboard does and is polished for
+external consumers, with a complete, example-rich OpenAPI document and Swagger UI.
 
-**Depends on**: 10, 14, 15, 24, 26.
+**Depends on**: 4 (the OpenAPI and Swagger UI serving), 10, 14, 15, 24, 26.
 
 **Server**: confirm every dashboard action has a contract endpoint (the dashboard
-already consumes them), add a place-a-call endpoint for headless origination, and
-generate or write API reference documentation from the ts-rest contract.
+already consumes them) and add a place-a-call endpoint for headless origination.
+The OpenAPI document and Swagger UI already exist and auto-update from feature 4;
+this feature audits them for public release: every endpoint has a clear summary,
+description, and realistic request and response examples; error responses are
+documented; and the `switchboard-web` proxy exposes `/api/docs` and
+`/api/v1/openapi.json` so users can explore and try the API from the dashboard
+origin.
 
-**Tests**: contract-coverage test that every resource has the expected operations;
-an endpoint test for headless place-a-call.
+**Docs**: a first-class REST API guide in `documentation/user/` that links the
+interactive Swagger UI, shows how to download the OpenAPI spec (for generating
+client code), and gives copy-paste `curl` examples for the common flows (create a
+trunk, create a number, place a call).
 
-**Acceptance**: a external client can drive trunks, numbers, routes, fault
-profiles, and calls entirely over `/api/v1`.
+**Tests**: a contract-coverage test that every resource has the expected
+operations; a test that the generated OpenAPI document validates against the
+OpenAPI 3 schema and that every endpoint carries a summary and at least one
+example; an endpoint test for headless place-a-call.
+
+**Acceptance**: an external client can drive trunks, numbers, routes, fault
+profiles, and calls entirely over `/api/v1`, and can explore and try every
+endpoint from Swagger UI at `/api/docs` with working examples.
 
 ### 29. CLI
 

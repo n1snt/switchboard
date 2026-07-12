@@ -87,8 +87,11 @@ label in parentheses is the implementation feature that delivers it (see the
 - Environment configuration: every `SWITCHBOARD_*` variable with examples
   (feature 13, and settings in feature 25).
 - Fault injection: reproduce carrier failures on demand (features 26 and 27).
-- REST API reference: every endpoint with request and response examples
-  (feature 28).
+- REST API reference: the API is self-documenting. Interactive Swagger UI is
+  served at `/api/docs` and the raw OpenAPI 3 spec at `/api/v1/openapi.json` (both
+  reachable through the dashboard), so you can explore, try calls, and generate a
+  client. This guide adds copy-paste `curl` examples for the common flows
+  (features 4 and 28).
 - CLI reference: every command with examples (feature 29).
 - Recipes: copy-paste setups for common SIP and voice-agent stacks (feature 32).
 - Troubleshooting: no audio, one-way audio, and registration problems
