@@ -1,0 +1,21 @@
+; Copyright 2026 Nishant Bhandari
+; SPDX-License-Identifier: Apache-2.0
+;
+; The RTP (Real-time Transport Protocol, the audio stream) port range. This
+; is the single biggest media/NAT risk in the project (architecture.md, "The
+; media and networking model"): every port here must also be published in
+; docker-compose.yml's `ports:` for switchboard-engine, or audio will
+; connect but never arrive (one-way or no audio). Rendered from this
+; .template by docker-entrypoint.sh via envsubst so docker-compose.yml's
+; environment is the one place this range is set; keep it narrow (100 ports
+; is plenty for a local dev sandbox) since each published UDP port costs a
+; small amount of Docker userland-proxy overhead on macOS/Windows.
+
+[general]
+rtpstart = ${SWITCHBOARD_RTP_START}
+rtpend = ${SWITCHBOARD_RTP_END}
+
+; ICE (Interactive Connectivity Establishment) candidate gathering, needed
+; for the browser WebRTC endpoints (pjsip.conf.template's webrtc=yes implies
+; this too, but it is also gated here at the RTP engine level).
+icesupport = yes

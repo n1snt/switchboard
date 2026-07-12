@@ -26,6 +26,12 @@ export default defineConfig({
       exclude: [
         '**/*.test.{ts,tsx}',
         '**/*.d.ts',
+        // Composition roots / bootstrap seams: exercised by running the app,
+        // not by unit tests (their parts are unit-tested individually).
+        'apps/server/src/server.ts',
+        // Thin seam over the real ari-client library, proven against a running
+        // engine (the connection logic is tested with an injected connector).
+        'apps/server/src/ari/connect.ts',
         'apps/web/src/main.tsx',
         'apps/web/src/routeTree.gen.ts',
         'apps/web/src/**/*.gen.ts',

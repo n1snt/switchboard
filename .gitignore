@@ -6,6 +6,9 @@ dist/
 build/
 *.tsbuildinfo
 
+# TanStack Router generated route tree
+apps/web/src/routeTree.gen.ts
+
 # Test / coverage
 coverage/
 

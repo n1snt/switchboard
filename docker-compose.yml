@@ -1,0 +1,156 @@
+# Copyright 2026 Nishant Bhandari
+# SPDX-License-Identifier: Apache-2.0
+#
+# The canonical way to run Switchboard (CLAUDE.md, "Packaging and
+# deployment"): `docker compose up` from the repository root builds or pulls
+# all three images and starts them together with the media/NAT settings that
+# make audio actually flow (documentation/dev/architecture.md, "The media and
+# networking model"; documentation/dev/containers.md has the full write-up).
+#
+# NOTE on this file vs. docker-compose.override.yml: if you cloned the full
+# source repository, plain `docker compose up` also picks up
+# docker-compose.override.yml automatically (Docker Compose's own file-
+# discovery convention) and you get the source-mounted, hot-reloading dev
+# services instead of these built images. To force the built images from a
+# full checkout, run `docker compose -f docker-compose.yml up`. Someone
+# running only this file on its own (no override present, e.g. downloaded
+# standalone per documentation/user/running-with-docker.md) always gets the
+# built-image behavior described below.
+#
+# NOTE on image vs. build: every service sets both `image` and `build`.
+# Compose's documented behavior for that combination (with no `pull_policy`
+# set) is "pull first, build only if the pull fails" — see
+# https://github.com/compose-spec/compose-spec/blob/master/build.md. Nothing
+# is published under these tags yet (packaging/naming is an open decision,
+# implementation.md's decisions log), so today every `docker compose up`
+# builds locally; `docker compose build` always forces a fresh local build
+# regardless.
+
+services:
+  # ---------------------------------------------------------------------
+  # The Asterisk engine: SIP signaling, the audio bridge, and the browser
+  # WebRTC endpoint. Holds almost no static config; the control plane
+  # provisions trunks into it at runtime over ARI (implementation.md
+  # feature 11).
+  # ---------------------------------------------------------------------
+  switchboard-engine:
+    image: switchboard-engine:local
+    build:
+      context: .
+      dockerfile: engine/Dockerfile
+    environment:
+      # Must match switchboard-api's SWITCHBOARD_ARI_USERNAME/PASSWORD below
+      # — this is the one ARI credential pair, shared by both sides.
+      SWITCHBOARD_ARI_USERNAME: ${SWITCHBOARD_ARI_USERNAME:-switchboard}
+      SWITCHBOARD_ARI_PASSWORD: ${SWITCHBOARD_ARI_PASSWORD:-switchboard}
+      # The address this engine advertises for SIP/RTP (external_media_address
+      # / external_signaling_address in pjsip.conf.template). 127.0.0.1 is
+      # correct by default on every platform for this sandbox's story
+      # (the far end is always the browser on this same machine); only
+      # change it to reach the engine from another device on the LAN.
+      SWITCHBOARD_ADVERTISED_ADDRESS: ${SWITCHBOARD_ADVERTISED_ADDRESS:-127.0.0.1}
+      # The RTP port range. Must stay identical to the port range published
+      # below AND to rtp.conf.template's rendered values — all three are
+      # driven from these two variables so there is exactly one place to
+      # change the range.
+      SWITCHBOARD_RTP_START: ${SWITCHBOARD_RTP_START:-10000}
+      SWITCHBOARD_RTP_END: ${SWITCHBOARD_RTP_END:-10099}
+    ports:
+      # Published-ports path (macOS/Windows default; also harmless on
+      # Linux). docker-compose.override.yml's Linux host-networking variant
+      # ignores this block entirely (network_mode: host owns all
+      # networking) — see the comment there.
+      #
+      # 8088: Asterisk's HTTP server. Two different things ride on it: ARI
+      # (used only by switchboard-api, over the internal Docker network —
+      # it does not need to be published for that) and the ws:// upgrade
+      # the browser softphone signals SIP over (which DOES need to be
+      # published, since the browser is outside the Docker network). They
+      # cannot be split onto separate ports without publishing 8088 anyway,
+      # so both ride along.
+      - '8088:8088'
+      # RTP media. MUST match SWITCHBOARD_RTP_START/END above and
+      # rtp.conf.template's rendered rtpstart/rtpend, or calls connect with
+      # audio silently one-way or absent (the classic Docker+SIP failure
+      # mode; see documentation/dev/containers.md's troubleshooting note).
+      - '10000-10099:10000-10099/udp'
+    networks:
+      - switchboard
+    # No named volumes for /etc/asterisk: the engine's config is baked into
+    # the image (COPY in engine/Dockerfile) since it is meant to be static
+    # and minimal, not host-editable. /var/spool/asterisk/monitor is shared
+    # with switchboard-api ahead of call recording (implementation.md
+    # feature 24), since that is where Asterisk's MixMonitor will write.
+    volumes:
+      - switchboard-recordings:/var/spool/asterisk/monitor
+
+  # ---------------------------------------------------------------------
+  # The Node.js control plane: REST API, WS event stream, SQLite, and the
+  # only thing that talks to the engine over ARI.
+  # ---------------------------------------------------------------------
+  switchboard-api:
+    image: switchboard-api:local
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    environment:
+      # 0.0.0.0 (not the loopback-only default in apps/server/src/config.ts)
+      # so switchboard-web's nginx, on the Docker network, can reach it.
+      SWITCHBOARD_HOST: 0.0.0.0
+      SWITCHBOARD_PORT: '3000'
+      SWITCHBOARD_DATABASE_PATH: /app/data/switchboard.sqlite
+      SWITCHBOARD_RECORDINGS_DIR: /app/recordings
+      # switchboard-engine is this service's name on the `switchboard`
+      # network, so Compose's embedded DNS resolves it directly — no fixed
+      # IP or extra config needed.
+      SWITCHBOARD_ARI_URL: http://switchboard-engine:8088
+      SWITCHBOARD_ARI_USERNAME: ${SWITCHBOARD_ARI_USERNAME:-switchboard}
+      SWITCHBOARD_ARI_PASSWORD: ${SWITCHBOARD_ARI_PASSWORD:-switchboard}
+      SWITCHBOARD_ARI_APP: switchboard
+      SWITCHBOARD_SIP_SERVERS: ${SWITCHBOARD_SIP_SERVERS:-[]}
+      SWITCHBOARD_RECORD_ALL: ${SWITCHBOARD_RECORD_ALL:-false}
+    volumes:
+      - switchboard-db-data:/app/data
+      - switchboard-recordings:/app/recordings
+    depends_on:
+      switchboard-engine:
+        condition: service_healthy
+    networks:
+      - switchboard
+    # No `ports:` here on purpose: switchboard-web's nginx is the single
+    # browser-facing origin for the control plane (architecture.md, "To
+    # keep the browser on a single origin..."). docker-compose.override.yml
+    # publishes 3000 directly for local development convenience.
+
+  # ---------------------------------------------------------------------
+  # The dashboard and browser softphone: a static build served by nginx,
+  # which also reverse-proxies the control plane so the browser stays
+  # single-origin (apps/web/nginx.conf).
+  # ---------------------------------------------------------------------
+  switchboard-web:
+    image: switchboard-web:local
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    ports:
+      # The one port a user or a browser needs to know about.
+      - '8080:80'
+    depends_on:
+      switchboard-api:
+        condition: service_healthy
+    networks:
+      - switchboard
+
+networks:
+  switchboard:
+    driver: bridge
+
+volumes:
+  # The SQLite database file. Named (not bind-mounted) so a fresh
+  # `docker compose up` on any platform works with no host directory setup;
+  # `docker compose down -v` clears it for a clean-slate restart.
+  switchboard-db-data:
+  # Call recordings (implementation.md feature 24). Shared between the
+  # engine (which writes them via MixMonitor) and the API (which serves
+  # playback/download).
+  switchboard-recordings:

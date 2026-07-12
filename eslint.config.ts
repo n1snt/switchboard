@@ -65,11 +65,20 @@ export default tseslint.config(
     },
   },
 
-  // Test files may be looser.
+  // Test files may be looser: they deal with intentionally-malformed inputs,
+  // injected HTTP responses, and mocks whose surface is only loosely typed.
   {
     files: ['**/*.test.ts', '**/*.test.tsx'],
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-non-null-assertion': 'off',
+      '@typescript-eslint/no-unsafe-assignment': 'off',
+      '@typescript-eslint/no-unsafe-member-access': 'off',
+      '@typescript-eslint/no-unsafe-call': 'off',
+      '@typescript-eslint/no-unsafe-argument': 'off',
+      '@typescript-eslint/no-unsafe-return': 'off',
+      // Assertions frequently reference mock methods as values.
+      '@typescript-eslint/unbound-method': 'off',
     },
   },
 

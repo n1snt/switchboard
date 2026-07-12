@@ -1,0 +1,19 @@
+; Copyright 2026 Nishant Bhandari
+; SPDX-License-Identifier: Apache-2.0
+;
+; Asterisk REST Interface. One user for the control plane — switchboard-api
+; is the only ARI client (architecture.md: "the only component that talks to
+; the engine"). Rendered from this .template by docker-entrypoint.sh via
+; envsubst so the username/password stay in sync with switchboard-api's
+; SWITCHBOARD_ARI_USERNAME/SWITCHBOARD_ARI_PASSWORD (see docker-compose.yml);
+; defaults match apps/server/src/config.ts's defaults so a plain
+; `docker compose up` needs no env vars set at all.
+
+[general]
+enabled = yes
+pretty = yes
+
+[${SWITCHBOARD_ARI_USERNAME}]
+type = user
+read_only = no
+password = ${SWITCHBOARD_ARI_PASSWORD}

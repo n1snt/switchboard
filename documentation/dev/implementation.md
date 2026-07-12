@@ -1115,14 +1115,17 @@ Resolved (settled and reflected throughout this document):
 - **UI**: Tailwind with Radix headless primitives (via shadcn/ui).
 - **Shell**: left sidebar with contextual section tabs.
 - **License**: Apache-2.0.
+- **D2** (feature 3): one SQLite file for both the application tables and, when
+  added in feature 11, the Asterisk realtime tables. Adopted. The application
+  tables (`trunks`, `numbers`, `routes`, `calls`, `settings`) are created by the
+  initial migration; the realtime tables are added by feature 11 in the same file.
 
 Still open:
 
 - **D1** (feature 11): PJSIP Realtime vs config generation for dynamic trunks.
-  Recommendation: PJSIP Realtime. This shapes feature 11 and the schema in
-  feature 3.
-- **D2** (feature 3): one SQLite file vs two for the Asterisk realtime and
-  application tables. Recommendation: one file.
+  Recommendation: PJSIP Realtime. This shapes feature 11. The walking skeleton
+  (feature 9) uses two static WebRTC endpoints in engine config, so it does not
+  depend on this decision.
 - **Naming** (feature 32): published package or domain qualifier, per the README.
 
 ## Appendix: features mapped to milestones

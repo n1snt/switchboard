@@ -1,0 +1,112 @@
+; Copyright 2026 Nishant Bhandari
+; SPDX-License-Identifier: Apache-2.0
+;
+; Static PJSIP configuration for the two-way-audio walking skeleton
+; (implementation.md feature 9). This file intentionally holds only the
+; transports and the two fixed browser softphone endpoints; real trunks
+; (feature 10/11) are provisioned at runtime by the control plane over ARI
+; and never appear here (CLAUDE.md: "keep the engine's static configuration
+; minimal; do not hard-code trunk-specific config into engine/").
+;
+; Rendered from this .template by docker-entrypoint.sh via envsubst, so the
+; advertised address stays in sync with docker-compose.yml's environment
+; instead of being duplicated by hand in two places.
+
+[global]
+type = global
+endpoint_identifier_order = username,ip
+
+;==============================================================================
+; Transports
+;==============================================================================
+
+; Plain ws:// for the browser softphone's SIP signaling (see http.conf and
+; the localhost-secure-context note there). The actual socket is Asterisk's
+; HTTP server (http.conf); this section just tells PJSIP such a transport
+; exists.
+[transport-ws]
+type = transport
+protocol = ws
+bind = 0.0.0.0
+
+; A plain UDP transport for future SIP trunks (feature 10/11). Trunk
+; endpoints are provisioned dynamically, but the transport they ride on is
+; static, so it is declared here even though no trunk uses it yet.
+;
+; external_media_address / external_signaling_address is the address this
+; engine advertises for SIP and RTP so the other side's replies and audio
+; packets know where to go. This is the crux of the media/NAT model
+; (architecture.md): on Linux with host networking the container's own
+; 127.0.0.1 already is the host's, so the default below is correct
+; unchanged; on macOS/Windows, published ports make 127.0.0.1 correct too as
+; long as the far end is also on this machine (the browser), which is the
+; sandbox's whole story. Only override SWITCHBOARD_ADVERTISED_ADDRESS (in
+; docker-compose.yml) when reaching the engine from another device on the
+; LAN. Keep this identical to the value used for the WebRTC endpoints below.
+[transport-udp]
+type = transport
+protocol = udp
+bind = 0.0.0.0
+external_media_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
+external_signaling_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
+
+;==============================================================================
+; Browser WebRTC endpoints (walking skeleton, feature 9)
+;==============================================================================
+;
+; Two fixed endpoints so two browser tabs can register (as 1001 and 1002)
+; and call each other. `webrtc=yes` is the PJSIP shortcut that implies
+; ICE support, rtcp-mux, use_avpf, and media_encryption=dtls all at once;
+; dtls_auto_generate_cert=yes then has Asterisk mint its own self-signed
+; DTLS certificate at startup so no certificate file has to be baked or
+; mounted for SRTP to come up. direct_media=no is essential: it keeps every
+; call's audio flowing through Asterisk's bridge (the ARI mixing bridge the
+; control plane creates in apps/server/src/ari/coordinator.ts) instead of
+; letting the two endpoints try to exchange RTP directly, which would
+; bypass the bridge and the record/observe features built on top of it.
+
+[webrtc-endpoint](!)
+type = endpoint
+context = switchboard-webrtc
+disallow = all
+allow = opus
+allow = ulaw
+allow = alaw
+webrtc = yes
+dtls_auto_generate_cert = yes
+direct_media = no
+rtp_symmetric = yes
+force_rport = yes
+rewrite_contact = yes
+transport = transport-ws
+
+[webrtc-aor](!)
+type = aor
+max_contacts = 1
+remove_existing = yes
+
+; --- Endpoint 1001 -----------------------------------------------------------
+[1001](webrtc-endpoint)
+auth = 1001
+aors = 1001
+
+[1001](webrtc-aor)
+
+[1001]
+type = auth
+auth_type = userpass
+username = 1001
+password = switchboard1001
+
+; --- Endpoint 1002 -----------------------------------------------------------
+[1002](webrtc-endpoint)
+auth = 1002
+aors = 1002
+
+[1002](webrtc-aor)
+
+[1002]
+type = auth
+auth_type = userpass
+username = 1002
+password = switchboard1002

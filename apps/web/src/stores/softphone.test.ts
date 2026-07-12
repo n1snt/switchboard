@@ -1,0 +1,188 @@
+// Copyright 2026 Nishant Bhandari
+// SPDX-License-Identifier: Apache-2.0
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  nullSipAdapter,
+  type IncomingCallInfo,
+  type SipAdapter,
+} from '@/features/softphone/adapter';
+import {
+  createInitialState,
+  useSoftphoneStore,
+  type SoftphoneStore,
+} from './softphone';
+
+function makeFakeAdapter(): SipAdapter {
+  return {
+    register: vi.fn(),
+    unregister: vi.fn(),
+    call: vi.fn(),
+    answer: vi.fn(),
+    decline: vi.fn(),
+    hangup: vi.fn(),
+    mute: vi.fn(),
+    hold: vi.fn(),
+    sendDtmf: vi.fn(),
+    onIncoming: vi.fn(),
+    attachMedia: vi.fn(),
+  };
+}
+
+const incoming: IncomingCallInfo = {
+  id: 'in-1',
+  from: '+14155550123',
+  via: 'carrier-sim',
+};
+
+function store(): SoftphoneStore {
+  return useSoftphoneStore.getState();
+}
+
+beforeEach(() => {
+  useSoftphoneStore.setState(createInitialState());
+});
+
+describe('createInitialState', () => {
+  it('is the idle baseline with the null adapter', () => {
+    expect(createInitialState()).toEqual({
+      registration: 'unregistered',
+      callState: 'idle',
+      muted: false,
+      held: false,
+      activeCall: null,
+      incoming: [],
+      adapter: nullSipAdapter,
+    });
+  });
+});
+
+describe('nullSipAdapter', () => {
+  it('exposes no-op methods that never throw', () => {
+    expect(() => {
+      nullSipAdapter.register();
+      nullSipAdapter.unregister();
+      nullSipAdapter.call('agent-dev');
+      nullSipAdapter.answer('in-1');
+      nullSipAdapter.decline('in-1');
+      nullSipAdapter.hangup();
+      nullSipAdapter.mute(true);
+      nullSipAdapter.hold(true);
+      nullSipAdapter.sendDtmf('1');
+      nullSipAdapter.onIncoming(() => {});
+      nullSipAdapter.attachMedia(null, null);
+    }).not.toThrow();
+  });
+});
+
+describe('softphone store with the default null adapter', () => {
+  it('drives the outgoing lifecycle idle -> calling -> ringing -> in-call -> ended -> idle', () => {
+    store().placeCall('agent-dev');
+    expect(store().callState).toBe('calling');
+    expect(store().activeCall).toEqual({
+      peer: 'agent-dev',
+      direction: 'placed',
+    });
+
+    store().outgoingRinging();
+    expect(store().callState).toBe('ringing');
+
+    store().callAnswered();
+    expect(store().callState).toBe('in-call');
+
+    store().hangup();
+    expect(store().callState).toBe('ended');
+
+    store().reset();
+    expect(store().callState).toBe('idle');
+    expect(store().activeCall).toBeNull();
+  });
+
+  it('registers, queues and accepts an incoming call', () => {
+    store().register();
+    expect(store().registration).toBe('registering');
+    store().setRegistration('registered');
+    expect(store().registration).toBe('registered');
+
+    store().receiveIncoming(incoming);
+    expect(store().incoming).toEqual([incoming]);
+
+    store().acceptIncoming('in-1');
+    expect(store().callState).toBe('in-call');
+    expect(store().activeCall).toEqual({
+      peer: '+14155550123',
+      direction: 'received',
+    });
+    expect(store().incoming).toEqual([]);
+  });
+
+  it('declines a queued incoming call', () => {
+    store().receiveIncoming(incoming);
+    store().declineIncoming('in-1');
+    expect(store().incoming).toEqual([]);
+  });
+
+  it('ignores accepting an unknown incoming id', () => {
+    store().receiveIncoming(incoming);
+    store().acceptIncoming('does-not-exist');
+    expect(store().callState).toBe('idle');
+    expect(store().incoming).toEqual([incoming]);
+  });
+
+  it('toggles mute and hold and sends DTMF without throwing', () => {
+    store().toggleMute();
+    expect(store().muted).toBe(true);
+    store().toggleMute();
+    expect(store().muted).toBe(false);
+
+    store().toggleHold();
+    expect(store().held).toBe(true);
+    store().toggleHold();
+    expect(store().held).toBe(false);
+
+    expect(() => {
+      store().sendDtmf('5');
+    }).not.toThrow();
+  });
+});
+
+describe('softphone store with an adapter attached', () => {
+  let adapter: SipAdapter;
+
+  beforeEach(() => {
+    adapter = makeFakeAdapter();
+    store().attachAdapter(adapter);
+  });
+
+  it('forwards session intent to the adapter', () => {
+    store().register();
+    expect(adapter.register).toHaveBeenCalledOnce();
+
+    store().placeCall('agent-dev');
+    expect(adapter.call).toHaveBeenCalledWith('agent-dev');
+
+    store().hangup();
+    expect(adapter.hangup).toHaveBeenCalledOnce();
+
+    store().toggleMute();
+    expect(adapter.mute).toHaveBeenCalledWith(true);
+
+    store().toggleHold();
+    expect(adapter.hold).toHaveBeenCalledWith(true);
+
+    store().sendDtmf('#');
+    expect(adapter.sendDtmf).toHaveBeenCalledWith('#');
+  });
+
+  it('answers an accepted incoming call through the adapter', () => {
+    store().receiveIncoming(incoming);
+    store().acceptIncoming('in-1');
+    expect(adapter.answer).toHaveBeenCalledWith('in-1');
+  });
+
+  it('declines through the adapter', () => {
+    store().receiveIncoming(incoming);
+    store().declineIncoming('in-1');
+    expect(adapter.decline).toHaveBeenCalledWith('in-1');
+  });
+});

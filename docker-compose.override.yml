@@ -1,0 +1,83 @@
+# Copyright 2026 Nishant Bhandari
+# SPDX-License-Identifier: Apache-2.0
+#
+# Development overlay. Docker Compose auto-merges this file with
+# docker-compose.yml whenever both sit in the same directory and you run
+# `docker compose up` with no `-f` flags (Compose's own file-discovery
+# convention, not something configured here) — see the note atop
+# docker-compose.yml. It swaps switchboard-api and switchboard-web for
+# source-mounted, hot-reloading dev processes; switchboard-engine is
+# unchanged (Asterisk has no "dev mode" to speak of).
+#
+# Run `docker compose -f docker-compose.yml up` to skip this file and run
+# the built images instead, from a full checkout.
+#
+# Both Dockerfiles below stop at their `deps` build stage (full workspace
+# install, devDependencies included, nothing built yet) instead of running
+# all the way through to their production stage — see apps/server/Dockerfile
+# and apps/web/Dockerfile.
+
+services:
+  switchboard-api:
+    image: switchboard-api:dev
+    build:
+      target: deps
+    working_dir: /workspace
+    command: ['pnpm', '--filter', '@switchboard/server', 'dev']
+    environment:
+      # Everything else is inherited from docker-compose.yml. Left
+      # unset here: SWITCHBOARD_DATABASE_PATH / SWITCHBOARD_RECORDINGS_DIR,
+      # since `pnpm --filter @switchboard/server dev` runs with its cwd set
+      # to apps/server, so their relative-path defaults
+      # (apps/server/src/config.ts) already land under the bind-mounted
+      # apps/server/data and apps/server/recordings — visible directly on
+      # the host, which is convenient for local development.
+      SWITCHBOARD_HOST: 0.0.0.0
+    volumes:
+      - .:/workspace:delegated
+      # Anonymous volumes over every node_modules path: without these, the
+      # bind mount above would shadow the node_modules pnpm installed
+      # *inside the image* (built for linux/amd64 or linux/arm64) with
+      # whatever node_modules exists on the host — which, for a native
+      # module like better-sqlite3, is very likely built for the wrong
+      # OS/arch (e.g. a macOS host) and would crash the container. This is
+      # the standard Compose idiom for bind-mounting a Node project's
+      # source while keeping its node_modules container-native.
+      - /workspace/node_modules
+      - /workspace/apps/server/node_modules
+      - /workspace/apps/web/node_modules
+      - /workspace/packages/shared/node_modules
+      - /workspace/packages/cli/node_modules
+    ports:
+      # Direct API access for local development (curl, Swagger UI at
+      # /api/docs, the CLI) without going through switchboard-web's proxy.
+      - '3000:3000'
+
+  switchboard-web:
+    image: switchboard-web:dev
+    build:
+      target: deps
+    working_dir: /workspace
+    # --host binds Vite's dev server to 0.0.0.0; otherwise it only listens
+    # on the container's loopback and the published port below reaches
+    # nothing.
+    command: ['pnpm', '--filter', '@switchboard/web', 'dev', '--host']
+    environment:
+      # apps/web/vite.config.ts's dev-server proxy defaults to
+      # 127.0.0.1:3000, which is switchboard-api's *container*, not this
+      # one; point it at the service name instead so Compose's embedded DNS
+      # resolves it.
+      VITE_API_PROXY_TARGET: http://switchboard-api:3000
+    volumes:
+      - .:/workspace:delegated
+      - /workspace/node_modules
+      - /workspace/apps/web/node_modules
+      - /workspace/apps/server/node_modules
+      - /workspace/packages/shared/node_modules
+      - /workspace/packages/cli/node_modules
+    ports:
+      # Vite's own dev server, hot module reload included. The base file's
+      # 8080:80 mapping is still inherited (Compose concatenates `ports:`
+      # rather than replacing it) but is inert here: nginx never runs in
+      # this override, so nothing listens on 80 in dev mode. Use 5173.
+      - '5173:5173'

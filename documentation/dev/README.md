@@ -7,6 +7,12 @@ Documentation for people building Switchboard. For using the tool, see the
 
 - [architecture.md](architecture.md): components, technology choices, the media
   and networking model, and the two core call flows.
+- [control-plane.md](control-plane.md): how the control plane and its foundations
+  are built (Part A and the server side of Part B): the shared contract, the
+  database layer, the Fastify server, the event bus and WebSocket stream, and the
+  Asterisk REST Interface connection and call bridging.
+- [containers.md](containers.md): the three Docker images, their build stages, and
+  the media and networking settings for Docker Compose.
 - [data-model.md](data-model.md): the SQLite storage schema for trunks, numbers,
   routes, calls, settings, and fault profiles.
 - [dashboard.md](dashboard.md): the dashboard screens, the softphone experience,
