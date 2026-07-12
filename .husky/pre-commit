@@ -1,0 +1,5 @@
+# Block the commit unless type-checking and the full test suite both pass.
+# Chained with && so a type error fails the hook (a plain newline would let it
+# pass, since the exit code would be the last command's). See the root
+# package.json "typecheck" and "test" scripts.
+pnpm typecheck && pnpm test
