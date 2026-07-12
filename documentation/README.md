@@ -34,7 +34,7 @@ web softphone plays the role of the human on the far end.
 
 In short:
 
-```
+```text
 Switchboard = fake carrier + fake far-end phone + an admin panel over both
 ```
 
@@ -69,6 +69,8 @@ These decisions define the initial release and keep it simple:
   routes, and calls.
 - [roadmap.md](roadmap.md): the milestone plan from first audio to a polished
   release.
+- [implementation.md](implementation.md): the build sequence, technology choices,
+  repository layout, and open decisions for each milestone.
 
 ## A note on the name
 
