@@ -1,8 +1,11 @@
 // Flat ESLint config for the whole Switchboard workspace.
 //
+// This config is TypeScript, in keeping with the no-JavaScript-source rule.
+// ESLint loads a .ts config via jiti, so it must be a workspace devDependency.
+//
 // Requires these workspace devDependencies (install when the workspace is
 // initialized in M0):
-//   eslint  typescript-eslint  eslint-config-prettier
+//   eslint  jiti  typescript-eslint  eslint-config-prettier
 //   eslint-plugin-react  eslint-plugin-react-hooks
 //
 // Rules here enforce the conventions in CLAUDE.md: strict TypeScript, no `any`,

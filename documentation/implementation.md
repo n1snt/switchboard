@@ -38,44 +38,117 @@ switchboard/
     server/        # Fastify control plane: REST API, WS event stream, ARI client, SQLite
     web/           # React + Vite: admin dashboard and web softphone (SIP.js)
   packages/
-    shared/        # Shared TypeScript types and validation schemas (trunks, numbers, routes, calls, events)
+    shared/        # Domain types, Zod schemas, and the ts-rest API contract
     cli/           # Command-line interface (M5)
   engine/          # Asterisk container: Dockerfile, config templates, bootstrap scripts
   docker-compose.yml
   pnpm-workspace.yaml
-  package.json           # workspace root: shared scripts, dev tooling
+  package.json           # workspace root: shared scripts, dev tooling only
   tsconfig.base.json     # shared TypeScript compiler options, extended by each package
-  eslint.config.js       # flat ESLint config for the whole workspace
+  eslint.config.ts       # flat ESLint config for the whole workspace (TypeScript, via jiti)
   .prettierrc            # formatting rules
   .editorconfig          # editor-level whitespace and charset rules
   CLAUDE.md              # project rules for AI-assisted work
-  README.md architecture.md data-model.md roadmap.md implementation.md
+  documentation/         # README, architecture, data-model, roadmap, implementation
 ```
 
 Why a monorepo: the server, the web app, and the CLI all share the same domain
-types (a trunk, a call, an event). Keeping them in one workspace with a shared
-`packages/shared` means those types are defined once and imported everywhere,
-with no version drift.
+types (a trunk, a call, an event) and the same API contract. Keeping them in one
+workspace with a shared `packages/shared` means those types are defined once and
+imported everywhere, with no version drift. All code is TypeScript. There is no
+JavaScript source; config files are TypeScript wherever the tool supports it
+(`eslint.config.ts`, `vite.config.ts`, `vitest.config.ts`), and only data files
+stay as JSON or YAML.
+
+The detailed server and web layouts appear after the technology stack.
 
 ## Technology stack
 
 The rationale for Asterisk and the two-container split lives in
 [architecture.md](architecture.md). The concrete library choices for this build:
 
-| Area              | Choice                            | Note                                                                |
-| ----------------- | --------------------------------- | ------------------------------------------------------------------- |
-| Package manager   | pnpm (workspace)                  | Fast, disk-efficient, first-class monorepo support.                 |
-| Language          | TypeScript, strict mode           | One language across server, web, CLI, and shared types.             |
-| Server framework  | Fastify                           | Fast, schema-first, built-in JSON schema validation and WS support. |
-| Server validation | Zod, shared via `packages/shared` | Same schemas validate REST input and type the client.               |
-| Database          | SQLite via `better-sqlite3`       | Synchronous, single-file, no external service. See Decision D2.     |
-| Migrations        | Hand-written SQL, run on boot     | Small schema; a full ORM is not warranted.                          |
-| Frontend build    | Vite + React + TypeScript         | Fast dev server, matches the workspace language.                    |
-| Softphone         | SIP.js                            | Browser SIP over WSS with WebRTC audio, as in architecture.md.      |
-| Engine            | Asterisk (PJSIP, ARI, WebRTC)     | Single container, controlled at runtime. See Foundations and D1.    |
-| ARI client        | `ari-client` (Node)               | WebSocket event stream plus REST control of channels and bridges.   |
-| Tests             | Vitest                            | Unit and integration tests across all packages.                     |
-| Lint / format     | ESLint (flat config) + Prettier   | Enforced in CI and pre-commit.                                      |
+| Area             | Choice                                 | Note                                                                      |
+| ---------------- | -------------------------------------- | ------------------------------------------------------------------------- |
+| Runtime          | Node.js (LTS)                          | Battle-tested native modules and ARI libraries; runs TypeScript directly. |
+| Package manager  | pnpm (workspace)                       | Fast, disk-efficient, first-class monorepo support.                       |
+| Language         | TypeScript, strict mode                | Pure TypeScript, no JavaScript source, across every package.              |
+| Server framework | Fastify                                | Fast, plugin-based, built-in WebSocket support.                           |
+| API contract     | ts-rest, in `packages/shared`          | One typed REST contract types the Fastify routes and the client.          |
+| Validation       | Zod, in `packages/shared`              | Backs the ts-rest contract and validates all boundary input.              |
+| Database         | `better-sqlite3` + Kysely              | Type-safe SQL query builder; hand-written TypeScript migrations at boot.  |
+| Frontend build   | Vite + React + TypeScript              | Fast dev server, matches the workspace language.                          |
+| Server state     | TanStack Query                         | Caching, mutations, and refetch for all REST data.                        |
+| Session state    | Zustand                                | One small store for the SIP.js call session and registration.             |
+| UI               | Tailwind + Radix (via shadcn/ui)       | Headless, accessible primitives styled in Tailwind.                       |
+| Softphone        | SIP.js                                 | Browser SIP over WSS with WebRTC audio.                                   |
+| Engine           | Asterisk (PJSIP, ARI, WebRTC)          | Single container, controlled at runtime. See Decision D1.                 |
+| ARI client       | `ari-client` (Node)                    | WebSocket event stream plus REST control of channels and bridges.         |
+| Tests            | Vitest                                 | Unit and integration tests across all packages.                           |
+| Lint / format    | ESLint (`eslint.config.ts`) + Prettier | Enforced in CI and pre-commit.                                            |
+
+## Detailed layout
+
+### Server (`apps/server/src/`)
+
+Domain-oriented modules, each a vertical slice: routes handle HTTP and
+validation, services hold logic, repositories are the only code that touches the
+database.
+
+```text
+src/
+  server.ts                 # entrypoint: load config, bind 127.0.0.1, listen
+  app.ts                    # build the Fastify instance, register plugins and /api/v1
+  config.ts                 # environment parsed and validated with Zod
+  db/
+    index.ts                # better-sqlite3 connection plus the Kysely instance
+    schema.ts               # table interfaces (the typed shape of every table)
+    migrate.ts              # run migrations at boot
+    migrations/             # 0001_init.ts, 0002_fault_profiles.ts, ...
+  modules/
+    trunks/                 # trunks.routes.ts | .service.ts | .repo.ts | .test.ts
+    numbers/
+    routes/
+    calls/
+    faults/
+  ari/
+    client.ts               # ARI WebSocket connection plus the Stasis application
+    handlers.ts             # channel and bridge event handlers
+    provisioning.ts         # maps a trunk row to PJSIP Realtime rows (Decision D1)
+  events/
+    bus.ts                  # internal event bus (F4)
+    ws.ts                   # WebSocket event-stream plugin for the dashboard
+  plugins/                  # error handler, CORS, request logging
+  api/
+    v1.ts                   # mounts every module's routes under /api/v1 (F3b)
+```
+
+### Web (`apps/web/src/`)
+
+Feature-first. Each feature owns its components and its TanStack Query hooks.
+
+```text
+src/
+  main.tsx  App.tsx
+  routes/                   # top-level pages (dashboard, trunks, numbers, calls, phone)
+  features/
+    trunks/                 # components plus query hooks (useTrunks, useCreateTrunk)
+    numbers/
+    calls/                  # live call log, subscribes to the WebSocket stream
+    softphone/              # SIP.js session logic plus its Zustand store
+  components/ui/            # Radix-based primitives styled with Tailwind (shadcn/ui)
+  lib/
+    api.ts                  # typed ts-rest client built from the shared contract
+    query.ts                # TanStack Query client and defaults
+    ws.ts                   # WebSocket subscription hook feeding the Query cache
+  stores/                   # Zustand stores (softphone and session state)
+  styles/                   # Tailwind entry
+```
+
+State ownership on the web side: TanStack Query holds all server data (trunks,
+numbers, routes, call log). A single Zustand store holds the imperative SIP.js
+call session and registration status. Local component state uses `useState`. The
+WebSocket hook pushes live call events into the TanStack Query cache so the call
+log updates without polling.
 
 ## Foundations (built across M0 to M2)
 
@@ -127,19 +200,44 @@ The storage choice that D1 implies raises a second question.
 
 ### F2. Data access layer
 
-`apps/server` owns all writes. A thin data layer wraps `better-sqlite3` with one
-module per table (`trunks`, `numbers`, `routes`, `calls`, later `fault_profiles`)
-matching [data-model.md](data-model.md). Schema is created and migrated by
-hand-written SQL run at server boot. Identifiers are text (a short unique id).
-JSON columns (`allowed_ips`, `dial_rewrite`) are stored as text and parsed at the
-boundary.
+`apps/server` owns all writes. Database access goes through Kysely, a type-safe
+SQL query builder, over a synchronous `better-sqlite3` connection. Kysely gives
+compile-checked queries against a hand-written table-interface type in
+`db/schema.ts`, with no heavy object-relational mapper and no runtime magic, and
+it coexists cleanly with the Asterisk-owned PJSIP Realtime tables (which the
+application reads or writes only through the provisioning module, not the
+per-entity repositories). There is one repository module per table (`trunks`,
+`numbers`, `routes`, `calls`, later `fault_profiles`), matching
+[data-model.md](data-model.md). Only repositories touch Kysely; services and
+routes never build queries directly. Schema is created and migrated by
+hand-written TypeScript migrations run at server boot. Identifiers are text (a
+short unique id). JSON columns (`allowed_ips`, `dial_rewrite`) are stored as text
+and parsed at the boundary.
 
-### F3. Shared types and validation
+### F3. Shared types, validation, and the API contract
 
-`packages/shared` exports Zod schemas for every entity and every event, plus the
-TypeScript types inferred from them. The server validates REST request bodies
-against these schemas; the web app and CLI import the same types. One definition,
-no drift.
+`packages/shared` is the single source of truth for the wire. It exports Zod
+schemas for every entity and event, the TypeScript types inferred from them, and
+a ts-rest contract that describes every REST endpoint (its path, method, request
+body, and response shape) in terms of those schemas. From that one contract:
+
+- The server implements typed Fastify route handlers, and every request body and
+  response is validated against the contract's Zod schemas at the boundary.
+- The web app and the CLI consume a fully typed client generated from the same
+  contract, so a change to an endpoint is a compile error on every caller rather
+  than a runtime surprise.
+
+This keeps the REST API real (the CLI, webhooks, and third-party tools can call
+it as plain HTTP) while giving end-to-end type safety inside the workspace.
+
+### F3b. API versioning
+
+Every REST route is mounted under a version prefix, starting at `/api/v1`. The
+version is part of the ts-rest contract and registered in Fastify as a plugin
+prefix. Policy: additive, backward-compatible changes stay within `v1`; only a
+breaking change to an existing endpoint mints `/api/v2`, and `v1` and `v2` can be
+served side by side during a deprecation window. This is what the CLI and any
+external consumer pin against.
 
 ### F4. Event model
 
@@ -350,10 +448,29 @@ and completes a two-way call within a few minutes.
 - **CI**: lint, typecheck, unit tests on every change; integration tests on a
   Linux runner using host networking where the media path is most reliable.
 
-## Open decisions log
+## Decisions log
+
+Resolved (these are settled and reflected throughout this document):
+
+- **Runtime**: Node.js LTS, not Bun or Deno. Native modules (`better-sqlite3`)
+  and the ARI client are Node-first, the performance gain is irrelevant for a
+  single-user localhost tool, and Node maximizes the open-source contributor
+  pool. Node LTS also runs TypeScript directly, so no build step is needed to
+  execute the server in development.
+- **Language**: pure TypeScript, strict mode, no JavaScript source.
+- **API layer**: ts-rest contract in `packages/shared` (typed REST), not tRPC,
+  because the CLI, webhooks, and external tools require plain REST.
+- **Database access**: Kysely on `better-sqlite3` (type-safe SQL), not raw SQL
+  and not a full object-relational mapper.
+- **Frontend state**: TanStack Query for server data, Zustand for the SIP.js
+  session, `useState` for local UI.
+- **UI**: Tailwind with Radix headless primitives (via shadcn/ui).
+- **License**: Apache-2.0.
+
+Still open:
 
 - **D1** (M1): PJSIP Realtime vs config-generation for dynamic trunks.
   Recommendation: PJSIP Realtime.
 - **D2** (M1): one SQLite file vs two for Asterisk realtime plus application
   tables. Recommendation: one file.
-- **Naming** (M6): published package/domain qualifier, per README.
+- **Naming** (M6): published package or domain qualifier, per the README.

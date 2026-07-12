@@ -1,0 +1,9 @@
+Switchboard
+Copyright 2026 Nishant Bhandari
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+Switchboard runs the Asterisk telephony engine (https://www.asterisk.org) as a
+separate container. Asterisk is licensed under the GNU General Public License
+version 2 and is not modified or linked into Switchboard's own code; Switchboard
+communicates with it over the Asterisk REST Interface at runtime.
