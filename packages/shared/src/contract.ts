@@ -3,11 +3,7 @@
 
 import { initContract } from '@ts-rest/core';
 import { z } from 'zod';
-import {
-  ErrorSchema,
-  HealthSchema,
-  IdSchema,
-} from './schemas/common';
+import { ErrorSchema, HealthSchema, IdSchema } from './schemas/common';
 import {
   TrunkCreateSchema,
   TrunkSchema,
@@ -57,7 +53,8 @@ export const trunksContract = c.router({
     method: 'GET',
     path: '/api/v1/trunks',
     summary: 'List trunks',
-    description: 'Every configured trunk, both dashboard- and environment-managed.',
+    description:
+      'Every configured trunk, both dashboard- and environment-managed.',
     responses: { 200: z.array(TrunkSchema) },
   },
   create: {

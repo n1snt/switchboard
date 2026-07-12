@@ -13,7 +13,9 @@ export const SettingsSchema = z
     record_all_calls: z
       .boolean()
       .default(false)
-      .describe('When true, record every call by default (SWITCHBOARD_RECORD_ALL).'),
+      .describe(
+        'When true, record every call by default (SWITCHBOARD_RECORD_ALL).',
+      ),
   })
   .describe('Global, persisted dashboard settings.');
 

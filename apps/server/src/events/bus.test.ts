@@ -6,7 +6,11 @@ import type { CallEvent } from '@switchboard/shared';
 import { CALL_EXAMPLE } from '@switchboard/shared';
 import { EventBus } from './bus';
 
-const event: CallEvent = { type: 'call.created', at: '2026-07-13T10:02:00.000Z', call: CALL_EXAMPLE };
+const event: CallEvent = {
+  type: 'call.created',
+  at: '2026-07-13T10:02:00.000Z',
+  call: CALL_EXAMPLE,
+};
 
 describe('EventBus', () => {
   it('delivers a published event to every subscriber', () => {

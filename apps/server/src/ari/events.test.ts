@@ -13,7 +13,11 @@ describe('ARI event schemas', () => {
     const parsed = StasisStartEventSchema.parse({
       type: 'StasisStart',
       args: ['dialed', 'bridge-1'],
-      channel: { id: 'c1', dialplan: { exten: '1002' }, caller: { number: '1001' } },
+      channel: {
+        id: 'c1',
+        dialplan: { exten: '1002' },
+        caller: { number: '1001' },
+      },
     });
     expect(parsed.args).toEqual(['dialed', 'bridge-1']);
     expect(parsed.channel.dialplan?.exten).toBe('1002');
@@ -29,14 +33,16 @@ describe('ARI event schemas', () => {
 
   it('rejects a malformed event (missing channel id)', () => {
     expect(
-      StasisStartEventSchema.safeParse({ type: 'StasisStart', channel: {} }).success,
+      StasisStartEventSchema.safeParse({ type: 'StasisStart', channel: {} })
+        .success,
     ).toBe(false);
   });
 
   it('parses StasisEnd and ChannelHangupRequest', () => {
-    expect(StasisEndEventSchema.parse({ type: 'StasisEnd', channel: { id: 'c1' } }).type).toBe(
-      'StasisEnd',
-    );
+    expect(
+      StasisEndEventSchema.parse({ type: 'StasisEnd', channel: { id: 'c1' } })
+        .type,
+    ).toBe('StasisEnd');
     const hangup = ChannelHangupRequestEventSchema.parse({
       type: 'ChannelHangupRequest',
       channel: { id: 'c1' },

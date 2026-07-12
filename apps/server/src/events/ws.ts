@@ -12,7 +12,10 @@ import type { EventBus } from './bus';
 
 export const EVENTS_PATH = '/api/v1/events';
 
-export async function registerEventStream(app: FastifyInstance, bus: EventBus): Promise<void> {
+export async function registerEventStream(
+  app: FastifyInstance,
+  bus: EventBus,
+): Promise<void> {
   await app.register(fastifyWebsocket);
   app.get(EVENTS_PATH, { websocket: true }, (socket) => {
     const unsubscribe = bus.subscribe((event) => {

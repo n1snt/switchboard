@@ -21,7 +21,8 @@ function makeOps(overrides: Partial<AriOperations> = {}): AriOperations {
 }
 
 const logger: Logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+const flush = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
 
 let ops: AriOperations;
 let bus: EventBus;
@@ -41,7 +42,11 @@ function coordinator(customOps: AriOperations = ops): CallCoordinator {
 const callerEvent = {
   type: 'StasisStart' as const,
   args: [] as string[],
-  channel: { id: 'caller-1', dialplan: { exten: '1002' }, caller: { number: '1001' } },
+  channel: {
+    id: 'caller-1',
+    dialplan: { exten: '1002' },
+    caller: { number: '1001' },
+  },
 };
 
 beforeEach(() => {
@@ -90,7 +95,12 @@ describe('CallCoordinator happy path', () => {
   });
 
   it('uses a real clock and id generator by default', async () => {
-    const coord = new CallCoordinator({ ops, bus, appName: 'switchboard', logger });
+    const coord = new CallCoordinator({
+      ops,
+      bus,
+      appName: 'switchboard',
+      logger,
+    });
     await coord.onStasisStart(callerEvent);
     expect(events[0]?.at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(events[0]?.call.id).toMatch(/\w+/);
@@ -110,7 +120,11 @@ describe('CallCoordinator happy path', () => {
 describe('CallCoordinator defensive paths', () => {
   it('hangs up a caller with no dialed target', async () => {
     const coord = coordinator();
-    await coord.onStasisStart({ type: 'StasisStart', args: [], channel: { id: 'caller-1' } });
+    await coord.onStasisStart({
+      type: 'StasisStart',
+      args: [],
+      channel: { id: 'caller-1' },
+    });
     expect(ops.hangup).toHaveBeenCalledWith('caller-1');
     expect(ops.createBridge).not.toHaveBeenCalled();
   });
@@ -160,7 +174,9 @@ describe('CallCoordinator defensive paths', () => {
   it('skips hanging up the other leg when the callee never entered Stasis', async () => {
     // Originate rejects, so the session is stored (bridge created, events sent)
     // but calleeChannelId is never set.
-    const failing = makeOps({ originate: vi.fn().mockRejectedValue(new Error('no route')) });
+    const failing = makeOps({
+      originate: vi.fn().mockRejectedValue(new Error('no route')),
+    });
     const coord = coordinator(failing);
     await expect(coord.onStasisStart(callerEvent)).rejects.toThrow();
     await coord.onHangup('caller-1', 'normal');
@@ -175,11 +191,15 @@ describe('CallCoordinator defensive paths', () => {
   });
 
   it('logs when tearing down a bridge fails', async () => {
-    const failing = makeOps({ destroyBridge: vi.fn().mockRejectedValue(new Error('boom')) });
+    const failing = makeOps({
+      destroyBridge: vi.fn().mockRejectedValue(new Error('boom')),
+    });
     const coord = coordinator(failing);
     await coord.onStasisStart(callerEvent);
     await coord.onHangup('caller-1', 'normal');
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('destroy bridge'));
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('destroy bridge'),
+    );
   });
 });
 
@@ -222,10 +242,14 @@ describe('CallCoordinator handlers()', () => {
   });
 
   it('logs when call handling throws', async () => {
-    const failing = makeOps({ answer: vi.fn().mockRejectedValue(new Error('no answer')) });
+    const failing = makeOps({
+      answer: vi.fn().mockRejectedValue(new Error('no answer')),
+    });
     const handlers = coordinator(failing).handlers();
     handlers.StasisStart?.(callerEvent);
     await flush();
-    expect(logger.error).toHaveBeenCalledWith(expect.stringContaining('call handling failed'));
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining('call handling failed'),
+    );
   });
 });

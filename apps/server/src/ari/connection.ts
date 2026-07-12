@@ -14,7 +14,9 @@ import type { Logger } from '../logger';
 export type AriConnector = () => Promise<Client>;
 
 /** Build the per-event handlers once a client is connected. */
-export type OnConnect = (client: Client) => Record<string, (payload: unknown) => void>;
+export type OnConnect = (
+  client: Client,
+) => Record<string, (payload: unknown) => void>;
 
 export interface AriConnectionDeps {
   connect: AriConnector;
@@ -77,7 +79,9 @@ export class AriConnection {
       this.wire(client);
       client.start(this.appName);
       this.status = 'connected';
-      this.logger.info(`ari: connected and joined Stasis app "${this.appName}"`);
+      this.logger.info(
+        `ari: connected and joined Stasis app "${this.appName}"`,
+      );
     } catch (err) {
       this.logger.warn(`ari: connect failed: ${String(err)}`);
       if (this.stopped) {

@@ -65,7 +65,9 @@ async function main(): Promise<void> {
   }
 
   await app.listen({ host: config.host, port: config.port });
-  app.log.info(`Switchboard API listening on http://${config.host}:${config.port}`);
+  app.log.info(
+    `Switchboard API listening on http://${config.host}:${config.port}`,
+  );
 }
 
 main().catch((err: unknown) => {

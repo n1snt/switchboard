@@ -44,7 +44,10 @@ describe('unknown route', () => {
 
 describe('OpenAPI document and Swagger UI', () => {
   it('serves a valid OpenAPI 3 document whose paths match the contract', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/v1/openapi.json' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/v1/openapi.json',
+    });
     expect(res.statusCode).toBe(200);
     const doc = res.json<{ openapi: string; paths: Record<string, unknown> }>();
     expect(doc.openapi).toMatch(/^3\./);
@@ -66,14 +69,20 @@ describe('OpenAPI document and Swagger UI', () => {
   });
 
   it('serves the Swagger UI static assets', async () => {
-    const res = await app.inject({ method: 'GET', url: '/api/docs/swagger-ui.css' });
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/docs/swagger-ui.css',
+    });
     expect(res.statusCode).toBe(200);
   });
 });
 
 describe('engine status default', () => {
   it('defaults to disconnected when no getter is supplied', async () => {
-    const bare = await buildApp({ config: loadConfig({}), bus: new EventBus() });
+    const bare = await buildApp({
+      config: loadConfig({}),
+      bus: new EventBus(),
+    });
     const res = await bare.inject({ method: 'GET', url: '/api/v1/health' });
     expect(res.json<Health>().engine).toBe('disconnected');
     await bare.close();

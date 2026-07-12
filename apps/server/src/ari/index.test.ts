@@ -9,7 +9,8 @@ import type { Logger } from '../logger';
 import { createAri } from './index';
 
 const logger: Logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+const flush = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
 
 function makeClient() {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
@@ -60,7 +61,11 @@ describe('createAri', () => {
     emit('StasisStart', {
       type: 'StasisStart',
       args: [],
-      channel: { id: 'caller-1', dialplan: { exten: '1002' }, caller: { number: '1001' } },
+      channel: {
+        id: 'caller-1',
+        dialplan: { exten: '1002' },
+        caller: { number: '1001' },
+      },
     });
     await flush();
 

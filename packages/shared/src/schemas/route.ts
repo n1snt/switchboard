@@ -20,7 +20,9 @@ export const RouteBaseSchema = z.object({
   destination: z
     .string()
     .min(1)
-    .describe('Where a matched call goes: `softphone` (outbound) or a trunk id (inbound).'),
+    .describe(
+      'Where a matched call goes: `softphone` (outbound) or a trunk id (inbound).',
+    ),
   priority: z
     .number()
     .int()

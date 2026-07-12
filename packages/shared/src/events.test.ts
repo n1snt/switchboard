@@ -23,14 +23,22 @@ describe('CallEventSchema', () => {
   });
 
   it('rejects an unknown event type', () => {
-    expect(CallEventSchema.safeParse({ type: 'call.exploded', at, call: CALL_EXAMPLE }).success).toBe(
-      false,
-    );
+    expect(
+      CallEventSchema.safeParse({
+        type: 'call.exploded',
+        at,
+        call: CALL_EXAMPLE,
+      }).success,
+    ).toBe(false);
   });
 
   it('requires the state field on state_changed', () => {
     expect(
-      CallEventSchema.safeParse({ type: 'call.state_changed', at, call: CALL_EXAMPLE }).success,
+      CallEventSchema.safeParse({
+        type: 'call.state_changed',
+        at,
+        call: CALL_EXAMPLE,
+      }).success,
     ).toBe(false);
   });
 });

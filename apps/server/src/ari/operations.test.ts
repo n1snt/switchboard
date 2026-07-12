@@ -37,7 +37,10 @@ describe('createAriOperations', () => {
     expect(id).toBe('bridge-1');
     expect(bridges.create).toHaveBeenCalledWith({ type: 'mixing' });
     await ops.addToBridge('bridge-1', 'c1');
-    expect(bridges.addChannel).toHaveBeenCalledWith({ bridgeId: 'bridge-1', channel: 'c1' });
+    expect(bridges.addChannel).toHaveBeenCalledWith({
+      bridgeId: 'bridge-1',
+      channel: 'c1',
+    });
     await ops.destroyBridge('bridge-1');
     expect(bridges.destroy).toHaveBeenCalledWith({ bridgeId: 'bridge-1' });
   });
@@ -60,7 +63,11 @@ describe('createAriOperations', () => {
       callerId: '+14155550123',
     });
 
-    await ops.originate({ endpoint: 'PJSIP/1002', app: 'switchboard', appArgs: [] });
+    await ops.originate({
+      endpoint: 'PJSIP/1002',
+      app: 'switchboard',
+      appArgs: [],
+    });
     expect(channels.originate).toHaveBeenLastCalledWith({
       endpoint: 'PJSIP/1002',
       app: 'switchboard',

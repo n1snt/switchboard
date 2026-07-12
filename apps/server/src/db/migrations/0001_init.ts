@@ -28,10 +28,14 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn('target_host', 'text')
     .addColumn('target_port', 'integer', (c) => c.notNull().defaultTo(5060))
     .addColumn('outbound_proxy', 'text')
-    .addColumn('dial_rewrite', 'text', (c) => c.notNull().defaultTo('{"rules":[]}'))
+    .addColumn('dial_rewrite', 'text', (c) =>
+      c.notNull().defaultTo('{"rules":[]}'),
+    )
     .addColumn('caller_id_name', 'text')
     .addColumn('caller_id_number', 'text')
-    .addColumn('codecs', 'text', (c) => c.notNull().defaultTo('["ulaw","alaw"]'))
+    .addColumn('codecs', 'text', (c) =>
+      c.notNull().defaultTo('["ulaw","alaw"]'),
+    )
     .addColumn('dtmf_mode', 'text', (c) => c.notNull())
     .addColumn('media_encryption', 'text', (c) => c.notNull())
     .addColumn('max_cps', 'integer')
@@ -65,7 +69,9 @@ export async function up(db: Kysely<Database>): Promise<void> {
     .addColumn('direction', 'text', (c) => c.notNull())
     .addColumn('from_number', 'text', (c) => c.notNull())
     .addColumn('to_number', 'text', (c) => c.notNull())
-    .addColumn('trunk_id', 'text', (c) => c.references('trunks.id').onDelete('set null'))
+    .addColumn('trunk_id', 'text', (c) =>
+      c.references('trunks.id').onDelete('set null'),
+    )
     .addColumn('state', 'text', (c) => c.notNull())
     .addColumn('started_at', 'text', (c) => c.notNull())
     .addColumn('answered_at', 'text')

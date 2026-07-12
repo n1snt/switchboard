@@ -34,7 +34,9 @@ export const FaultProfileBaseSchema = z.object({
     .optional()
     .describe('Delay before answering, to simulate slow pickup.'),
   audio_mode: AudioModeSchema.default('normal'),
-  force_codec: CodecSchema.optional().describe('Force a codec, overriding negotiation.'),
+  force_codec: CodecSchema.optional().describe(
+    'Force a codec, overriding negotiation.',
+  ),
 });
 
 /** POST /faults body. */

@@ -17,5 +17,7 @@ export function createDb(path: string): Db {
   const sqlite = new SqliteDatabase(path);
   sqlite.pragma('journal_mode = WAL');
   sqlite.pragma('foreign_keys = ON');
-  return new Kysely<Database>({ dialect: new SqliteDialect({ database: sqlite }) });
+  return new Kysely<Database>({
+    dialect: new SqliteDialect({ database: sqlite }),
+  });
 }

@@ -34,7 +34,9 @@ afterAll(async () => {
 });
 
 function once<T>(socket: WebSocket, resolve: (value: T) => void): void {
-  socket.once('message', (data: Buffer) => resolve(JSON.parse(data.toString()) as T));
+  socket.once('message', (data: Buffer) =>
+    resolve(JSON.parse(data.toString()) as T),
+  );
 }
 
 describe('event stream WebSocket', () => {

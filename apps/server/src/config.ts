@@ -16,7 +16,10 @@ const RawEnvSchema = z.object({
   // SWITCHBOARD_HOST=0.0.0.0 so the web container can reach the API.
   SWITCHBOARD_HOST: z.string().min(1).default('127.0.0.1'),
   SWITCHBOARD_PORT: z.coerce.number().int().min(1).max(65535).default(3000),
-  SWITCHBOARD_DATABASE_PATH: z.string().min(1).default('./data/switchboard.sqlite'),
+  SWITCHBOARD_DATABASE_PATH: z
+    .string()
+    .min(1)
+    .default('./data/switchboard.sqlite'),
   SWITCHBOARD_ARI_URL: z.string().url().default('http://127.0.0.1:8088'),
   SWITCHBOARD_ARI_USERNAME: z.string().min(1).default('switchboard'),
   SWITCHBOARD_ARI_PASSWORD: z.string().min(1).default('switchboard'),

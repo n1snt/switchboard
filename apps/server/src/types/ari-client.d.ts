@@ -41,7 +41,11 @@ declare module 'ari-client' {
     bridges: Bridges;
   }
 
-  export function connect(url: string, username: string, password: string): Promise<Client>;
+  export function connect(
+    url: string,
+    username: string,
+    password: string,
+  ): Promise<Client>;
 
   const client: { connect: typeof connect };
   export default client;

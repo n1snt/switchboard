@@ -37,7 +37,9 @@ export const MediaEncryptionSchema = z
 /** Whether a trunk was created in the dashboard or seeded from the environment. */
 export const TrunkSourceSchema = z
   .enum(['ui', 'env'])
-  .describe('ui: created via API/dashboard; env: seeded from SWITCHBOARD_SIP_SERVERS.');
+  .describe(
+    'ui: created via API/dashboard; env: seeded from SWITCHBOARD_SIP_SERVERS.',
+  );
 
 /** Technical prefix plus ordered pattern rewrites applied to the dialed number. */
 export const DialRewriteSchema = z
@@ -45,12 +47,18 @@ export const DialRewriteSchema = z
     tech_prefix: z
       .string()
       .optional()
-      .describe('Prefix prepended to the dialed number, as many carriers require.'),
+      .describe(
+        'Prefix prepended to the dialed number, as many carriers require.',
+      ),
     rules: z
       .array(
         z.object({
-          match: z.string().describe('Regular expression matched against the number.'),
-          replace: z.string().describe('Replacement applied when the pattern matches.'),
+          match: z
+            .string()
+            .describe('Regular expression matched against the number.'),
+          replace: z
+            .string()
+            .describe('Replacement applied when the pattern matches.'),
         }),
       )
       .default([])
@@ -60,15 +68,24 @@ export const DialRewriteSchema = z
 
 /** Every user-configurable trunk field, with defaults for the Quick-add path. */
 export const TrunkBaseSchema = z.object({
-  name: z.string().min(1).describe('Human-readable label; also what the dialler shows.'),
+  name: z
+    .string()
+    .min(1)
+    .describe('Human-readable label; also what the dialler shows.'),
   direction: TrunkDirectionSchema.default('both'),
   enabled: z
     .boolean()
     .default(true)
     .describe('When false, the trunk rejects and is hidden from the dialler.'),
   auth_mode: AuthModeSchema.default('none'),
-  username: z.string().optional().describe('Digest username, when auth_mode is digest.'),
-  password: z.string().optional().describe('Digest password, when auth_mode is digest.'),
+  username: z
+    .string()
+    .optional()
+    .describe('Digest username, when auth_mode is digest.'),
+  password: z
+    .string()
+    .optional()
+    .describe('Digest password, when auth_mode is digest.'),
   auth_username: z
     .string()
     .optional()
@@ -82,7 +99,10 @@ export const TrunkBaseSchema = z.object({
     .boolean()
     .default(false)
     .describe('When true, the trunk registers to a remote server.'),
-  registrar: z.string().optional().describe('Registrar address, when register is true.'),
+  registrar: z
+    .string()
+    .optional()
+    .describe('Registrar address, when register is true.'),
   register_expiry: z
     .number()
     .int()
@@ -100,7 +120,9 @@ export const TrunkBaseSchema = z.object({
     .min(1)
     .max(65535)
     .default(5060)
-    .describe("Port of your system's SIP endpoint (default 5060, 5061 for TLS)."),
+    .describe(
+      "Port of your system's SIP endpoint (default 5060, 5061 for TLS).",
+    ),
   outbound_proxy: z
     .string()
     .optional()
@@ -110,7 +132,10 @@ export const TrunkBaseSchema = z.object({
     .string()
     .optional()
     .describe('Display name presented on outgoing calls (the From header).'),
-  caller_id_number: z.string().optional().describe('Number presented on outgoing calls.'),
+  caller_id_number: z
+    .string()
+    .optional()
+    .describe('Number presented on outgoing calls.'),
   codecs: z
     .array(CodecSchema)
     .default(['ulaw', 'alaw'])

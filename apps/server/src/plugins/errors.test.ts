@@ -26,7 +26,9 @@ describe('toErrorResponse', () => {
   });
 
   it('uses an HttpError status, code, and message', () => {
-    const { statusCode, body } = toErrorResponse(new HttpError(404, 'not_found', 'gone'));
+    const { statusCode, body } = toErrorResponse(
+      new HttpError(404, 'not_found', 'gone'),
+    );
     expect(statusCode).toBe(404);
     expect(body.error).toEqual({ code: 'not_found', message: 'gone' });
   });
@@ -39,7 +41,10 @@ describe('toErrorResponse', () => {
   });
 
   it('reads code and message from a fastify-style error', () => {
-    const err = Object.assign(new Error('boom'), { statusCode: 400, code: 'FST_ERR' });
+    const err = Object.assign(new Error('boom'), {
+      statusCode: 400,
+      code: 'FST_ERR',
+    });
     const { statusCode, body } = toErrorResponse(err);
     expect(statusCode).toBe(400);
     expect(body.error).toEqual({ code: 'FST_ERR', message: 'boom' });
@@ -66,7 +71,10 @@ describe('toErrorResponse', () => {
 describe('convenience constructors', () => {
   it('build HttpErrors with the right status and code', () => {
     expect(notFound('x')).toMatchObject({ statusCode: 404, code: 'not_found' });
-    expect(badRequest('y')).toMatchObject({ statusCode: 400, code: 'bad_request' });
+    expect(badRequest('y')).toMatchObject({
+      statusCode: 400,
+      code: 'bad_request',
+    });
   });
 });
 
@@ -93,24 +101,32 @@ describe('registerErrorHandler (wired into Fastify)', () => {
   it('returns 400 in the error shape for a validation failure', async () => {
     const res = await app.inject({ method: 'GET', url: '/zod' });
     expect(res.statusCode).toBe(400);
-    expect(res.json<{ error: { code: string } }>().error.code).toBe('validation_error');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'validation_error',
+    );
   });
 
   it('returns 500 for an unexpected error', async () => {
     const res = await app.inject({ method: 'GET', url: '/boom' });
     expect(res.statusCode).toBe(500);
-    expect(res.json<{ error: { code: string } }>().error.code).toBe('internal_error');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'internal_error',
+    );
   });
 
   it('returns a mapped HttpError', async () => {
     const res = await app.inject({ method: 'GET', url: '/http' });
     expect(res.statusCode).toBe(404);
-    expect(res.json<{ error: { code: string } }>().error.code).toBe('not_found');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'not_found',
+    );
   });
 
   it('returns 404 in the error shape for an unknown route', async () => {
     const res = await app.inject({ method: 'GET', url: '/does-not-exist' });
     expect(res.statusCode).toBe(404);
-    expect(res.json<{ error: { code: string } }>().error.code).toBe('not_found');
+    expect(res.json<{ error: { code: string } }>().error.code).toBe(
+      'not_found',
+    );
   });
 });

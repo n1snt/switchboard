@@ -2,12 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import {
-  CodecSchema,
-  E164Schema,
-  ErrorSchema,
-  HealthSchema,
-} from './common';
+import { CodecSchema, E164Schema, ErrorSchema, HealthSchema } from './common';
 import { NUMBER_EXAMPLE, NumberCreateSchema, NumberSchema } from './number';
 import { ROUTE_EXAMPLE, RouteCreateSchema, RouteSchema } from './route';
 import { CALL_EXAMPLE, CallListQuerySchema, CallSchema } from './call';
@@ -16,7 +11,11 @@ import {
   FaultProfileCreateSchema,
   FaultProfileSchema,
 } from './fault-profile';
-import { SETTINGS_EXAMPLE, SettingsSchema, SettingsUpdateSchema } from './settings';
+import {
+  SETTINGS_EXAMPLE,
+  SettingsSchema,
+  SettingsUpdateSchema,
+} from './settings';
 
 describe('common primitives', () => {
   it('validates E.164 numbers', () => {
@@ -38,7 +37,11 @@ describe('common primitives', () => {
 
   it('accepts a health payload', () => {
     expect(
-      HealthSchema.parse({ status: 'ok', engine: 'connected', version: '0.0.0' }).engine,
+      HealthSchema.parse({
+        status: 'ok',
+        engine: 'connected',
+        version: '0.0.0',
+      }).engine,
     ).toBe('connected');
   });
 });
@@ -47,28 +50,34 @@ describe('numbers', () => {
   it('parses the example and a create body', () => {
     expect(NumberSchema.parse(NUMBER_EXAMPLE)).toEqual(NUMBER_EXAMPLE);
     expect(
-      NumberCreateSchema.parse({ e164: '+14155550123', trunk_id: 'trunk_1' }).trunk_id,
+      NumberCreateSchema.parse({ e164: '+14155550123', trunk_id: 'trunk_1' })
+        .trunk_id,
     ).toBe('trunk_1');
   });
 
   it('rejects a non-E.164 number', () => {
-    expect(NumberCreateSchema.safeParse({ e164: 'nope', trunk_id: 't' }).success).toBe(false);
+    expect(
+      NumberCreateSchema.safeParse({ e164: 'nope', trunk_id: 't' }).success,
+    ).toBe(false);
   });
 });
 
 describe('routes', () => {
   it('defaults priority to 100', () => {
     expect(
-      RouteCreateSchema.parse({ direction: 'outbound', match: '*', destination: 'softphone' })
-        .priority,
+      RouteCreateSchema.parse({
+        direction: 'outbound',
+        match: '*',
+        destination: 'softphone',
+      }).priority,
     ).toBe(100);
   });
 
   it('parses the example and rejects an unknown direction', () => {
     expect(RouteSchema.parse(ROUTE_EXAMPLE)).toEqual(ROUTE_EXAMPLE);
-    expect(RouteSchema.safeParse({ ...ROUTE_EXAMPLE, direction: 'nowhere' }).success).toBe(
-      false,
-    );
+    expect(
+      RouteSchema.safeParse({ ...ROUTE_EXAMPLE, direction: 'nowhere' }).success,
+    ).toBe(false);
   });
 });
 
@@ -78,7 +87,10 @@ describe('calls', () => {
   });
 
   it('coerces query numbers and applies pagination defaults', () => {
-    const parsed = CallListQuerySchema.parse({ limit: '10', direction: 'received' });
+    const parsed = CallListQuerySchema.parse({
+      limit: '10',
+      direction: 'received',
+    });
     expect(parsed.limit).toBe(10);
     expect(parsed.offset).toBe(0);
     expect(parsed.direction).toBe('received');
@@ -91,14 +103,19 @@ describe('calls', () => {
 
 describe('fault profiles', () => {
   it('parses the example and defaults audio_mode', () => {
-    expect(FaultProfileSchema.parse(FAULT_PROFILE_EXAMPLE)).toEqual(FAULT_PROFILE_EXAMPLE);
-    expect(FaultProfileCreateSchema.parse({ name: 'x' }).audio_mode).toBe('normal');
+    expect(FaultProfileSchema.parse(FAULT_PROFILE_EXAMPLE)).toEqual(
+      FAULT_PROFILE_EXAMPLE,
+    );
+    expect(FaultProfileCreateSchema.parse({ name: 'x' }).audio_mode).toBe(
+      'normal',
+    );
   });
 
   it('rejects a rejection code outside SIP range', () => {
-    expect(FaultProfileCreateSchema.safeParse({ name: 'x', reject_code: 200 }).success).toBe(
-      false,
-    );
+    expect(
+      FaultProfileCreateSchema.safeParse({ name: 'x', reject_code: 200 })
+        .success,
+    ).toBe(false);
   });
 });
 

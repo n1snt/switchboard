@@ -4,7 +4,11 @@
 import Fastify from 'fastify';
 import type { FastifyInstance, FastifyServerOptions } from 'fastify';
 import cors from '@fastify/cors';
-import { contract, HealthSchema, SWITCHBOARD_VERSION } from '@switchboard/shared';
+import {
+  contract,
+  HealthSchema,
+  SWITCHBOARD_VERSION,
+} from '@switchboard/shared';
 import type { EngineStatus, Health } from '@switchboard/shared';
 import type { Config } from './config';
 import type { EventBus } from './events/bus';

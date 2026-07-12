@@ -29,7 +29,13 @@ describe('migrate', () => {
     const tables = await db.introspection.getTables();
     const names = tables.map((t) => t.name);
     expect(names).toEqual(
-      expect.arrayContaining(['trunks', 'numbers', 'routes', 'calls', 'settings']),
+      expect.arrayContaining([
+        'trunks',
+        'numbers',
+        'routes',
+        'calls',
+        'settings',
+      ]),
     );
   });
 

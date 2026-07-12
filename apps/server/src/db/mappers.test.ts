@@ -77,7 +77,12 @@ describe('database round-trip', () => {
       .executeTakeFirstOrThrow();
 
     expect(fromDbBool(row.enabled)).toBe(true);
-    expect(fromJsonColumn(row.codecs, z.array(z.string()))).toEqual(['ulaw', 'alaw']);
-    expect(fromJsonColumn(row.allowed_ips, z.array(z.string()))).toEqual(['10.0.0.5']);
+    expect(fromJsonColumn(row.codecs, z.array(z.string()))).toEqual([
+      'ulaw',
+      'alaw',
+    ]);
+    expect(fromJsonColumn(row.allowed_ips, z.array(z.string()))).toEqual([
+      '10.0.0.5',
+    ]);
   });
 });

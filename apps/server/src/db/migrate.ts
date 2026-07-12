@@ -18,7 +18,10 @@ export async function migrate(db: Db): Promise<string[]> {
     )
   `.execute(db);
 
-  const appliedRows = await db.selectFrom('migrations').select('name').execute();
+  const appliedRows = await db
+    .selectFrom('migrations')
+    .select('name')
+    .execute();
   const applied = new Set(appliedRows.map((row) => row.name));
 
   const ran: string[] = [];

@@ -33,11 +33,15 @@ describe('loadConfig', () => {
 
   it('treats record-all values other than true/1 as false', () => {
     expect(loadConfig({ SWITCHBOARD_RECORD_ALL: '1' }).recordAll).toBe(true);
-    expect(loadConfig({ SWITCHBOARD_RECORD_ALL: 'false' }).recordAll).toBe(false);
+    expect(loadConfig({ SWITCHBOARD_RECORD_ALL: 'false' }).recordAll).toBe(
+      false,
+    );
   });
 
   it('throws a readable error on invalid config', () => {
-    expect(() => loadConfig({ SWITCHBOARD_PORT: '70000' })).toThrow(/Invalid configuration/);
+    expect(() => loadConfig({ SWITCHBOARD_PORT: '70000' })).toThrow(
+      /Invalid configuration/,
+    );
     expect(() => loadConfig({ SWITCHBOARD_ARI_URL: 'not-a-url' })).toThrow(
       /Invalid configuration/,
     );

@@ -99,10 +99,14 @@ export class CallCoordinator {
       ChannelHangupRequest: (payload) => {
         const result = ChannelHangupRequestEventSchema.safeParse(payload);
         if (!result.success) {
-          this.logger.warn('ari: ignoring malformed ChannelHangupRequest event');
+          this.logger.warn(
+            'ari: ignoring malformed ChannelHangupRequest event',
+          );
           return;
         }
-        this.run(() => this.onHangup(result.data.channel.id, causeText(result.data.cause)));
+        this.run(() =>
+          this.onHangup(result.data.channel.id, causeText(result.data.cause)),
+        );
       },
     };
   }
@@ -113,9 +117,12 @@ export class CallCoordinator {
 
     if (event.args[0] === 'dialed') {
       const bridgeId = event.args[1];
-      const session = bridgeId === undefined ? undefined : this.byBridge.get(bridgeId);
+      const session =
+        bridgeId === undefined ? undefined : this.byBridge.get(bridgeId);
       if (!session) {
-        this.logger.warn(`ari: callee leg ${channelId} with no matching bridge; hanging up`);
+        this.logger.warn(
+          `ari: callee leg ${channelId} with no matching bridge; hanging up`,
+        );
         await this.ops.hangup(channelId);
         return;
       }
@@ -130,7 +137,9 @@ export class CallCoordinator {
 
     const dialed = event.channel.dialplan?.exten;
     if (dialed === undefined || dialed === '') {
-      this.logger.warn(`ari: caller leg ${channelId} with no dialed target; hanging up`);
+      this.logger.warn(
+        `ari: caller leg ${channelId} with no dialed target; hanging up`,
+      );
       await this.ops.hangup(channelId);
       return;
     }
@@ -172,7 +181,10 @@ export class CallCoordinator {
         ? session.calleeChannelId
         : session.callerChannelId;
 
-    await this.safe(() => this.ops.destroyBridge(session.bridgeId), 'destroy bridge');
+    await this.safe(
+      () => this.ops.destroyBridge(session.bridgeId),
+      'destroy bridge',
+    );
     if (otherLeg !== undefined) {
       await this.safe(() => this.ops.hangup(otherLeg), 'hang up other leg');
     }

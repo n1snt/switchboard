@@ -49,4 +49,6 @@ export const ChannelHangupRequestEventSchema = z.object({
 export type AriChannel = z.infer<typeof AriChannelSchema>;
 export type StasisStartEvent = z.infer<typeof StasisStartEventSchema>;
 export type StasisEndEvent = z.infer<typeof StasisEndEventSchema>;
-export type ChannelHangupRequestEvent = z.infer<typeof ChannelHangupRequestEventSchema>;
+export type ChannelHangupRequestEvent = z.infer<
+  typeof ChannelHangupRequestEventSchema
+>;

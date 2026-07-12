@@ -7,7 +7,8 @@ import type { Logger } from '../logger';
 import { AriConnection } from './connection';
 
 const logger: Logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
-const flush = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
+const flush = (): Promise<void> =>
+  new Promise((resolve) => setImmediate(resolve));
 
 function makeClient() {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
@@ -86,7 +87,9 @@ describe('AriConnection', () => {
 
     await conn.start();
     expect(conn.getStatus()).toBe('connecting');
-    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('connect failed'));
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('connect failed'),
+    );
     expect(scheduled).toHaveLength(1);
 
     scheduled[0]?.();

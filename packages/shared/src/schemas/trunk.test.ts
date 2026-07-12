@@ -27,7 +27,12 @@ describe('TrunkCreateSchema defaults', () => {
 });
 
 describe('TrunkCreateSchema cross-field rules', () => {
-  const cases: Array<{ name: string; input: TrunkCreate; ok: boolean; path?: string }> = [
+  const cases: Array<{
+    name: string;
+    input: TrunkCreate;
+    ok: boolean;
+    path?: string;
+  }> = [
     { name: 'valid outbound with auth none', input: base, ok: true },
     {
       name: 'digest without any credentials',
@@ -76,7 +81,11 @@ describe('TrunkCreateSchema cross-field rules', () => {
     },
     {
       name: 'inbound with a target host',
-      input: { name: 't', direction: 'inbound', target_host: 'host.docker.internal' },
+      input: {
+        name: 't',
+        direction: 'inbound',
+        target_host: 'host.docker.internal',
+      },
       ok: true,
     },
     {
@@ -91,7 +100,9 @@ describe('TrunkCreateSchema cross-field rules', () => {
     const result = TrunkCreateSchema.safeParse(input);
     expect(result.success).toBe(ok);
     if (!result.success && path) {
-      expect(result.error.issues.some((issue) => issue.path.includes(path))).toBe(true);
+      expect(
+        result.error.issues.some((issue) => issue.path.includes(path)),
+      ).toBe(true);
     }
   });
 });
@@ -102,13 +113,16 @@ describe('TrunkSchema and TrunkUpdateSchema', () => {
   });
 
   it('rejects an unknown direction', () => {
-    expect(TrunkSchema.safeParse({ ...TRUNK_EXAMPLE, direction: 'sideways' }).success).toBe(
-      false,
-    );
+    expect(
+      TrunkSchema.safeParse({ ...TRUNK_EXAMPLE, direction: 'sideways' })
+        .success,
+    ).toBe(false);
   });
 
   it('lets a partial update omit every field', () => {
     expect(TrunkUpdateSchema.parse({})).toEqual({});
-    expect(TrunkUpdateSchema.parse({ name: 'renamed' })).toEqual({ name: 'renamed' });
+    expect(TrunkUpdateSchema.parse({ name: 'renamed' })).toEqual({
+      name: 'renamed',
+    });
   });
 });

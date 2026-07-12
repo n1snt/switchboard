@@ -27,14 +27,21 @@ export const CallSchema = z
     trunk_id: IdSchema.nullable().describe('The trunk the call used, if any.'),
     state: CallStateSchema,
     started_at: TimestampSchema.describe('When call setup began.'),
-    answered_at: TimestampSchema.nullable().describe('When answered; null if never.'),
-    ended_at: TimestampSchema.nullable().describe('When the call ended; null while live.'),
+    answered_at: TimestampSchema.nullable().describe(
+      'When answered; null if never.',
+    ),
+    ended_at: TimestampSchema.nullable().describe(
+      'When the call ended; null while live.',
+    ),
     hangup_cause: z
       .string()
       .nullable()
       .describe('Why the call ended, e.g. normal, busy, timeout.'),
     codec: z.string().nullable().describe('The negotiated audio codec.'),
-    recording: z.string().nullable().describe('Path to the recording file, if recorded.'),
+    recording: z
+      .string()
+      .nullable()
+      .describe('Path to the recording file, if recorded.'),
   })
   .describe('A single call attempt and its timeline.');
 
@@ -47,11 +54,17 @@ export const CallListQuerySchema = z.object({
   direction: z
     .enum(['placed', 'received'])
     .optional()
-    .describe('placed = softphone placed it; received = softphone received it.'),
+    .describe(
+      'placed = softphone placed it; received = softphone received it.',
+    ),
   trunk_id: IdSchema.optional(),
   state: CallStateSchema.optional(),
-  from: TimestampSchema.optional().describe('Only calls started at or after this time.'),
-  to: TimestampSchema.optional().describe('Only calls started at or before this time.'),
+  from: TimestampSchema.optional().describe(
+    'Only calls started at or after this time.',
+  ),
+  to: TimestampSchema.optional().describe(
+    'Only calls started at or before this time.',
+  ),
   limit: z.coerce.number().int().min(1).max(500).default(50),
   offset: z.coerce.number().int().min(0).default(0),
 });

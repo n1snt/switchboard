@@ -42,7 +42,10 @@ function hasStatusCode(err: unknown): err is StatusCarrier {
 }
 
 /** Map any thrown value to a status code and the shared error envelope. */
-export function toErrorResponse(err: unknown): { statusCode: number; body: ApiError } {
+export function toErrorResponse(err: unknown): {
+  statusCode: number;
+  body: ApiError;
+} {
   if (err instanceof ZodError) {
     return {
       statusCode: 400,
@@ -63,7 +66,10 @@ export function toErrorResponse(err: unknown): { statusCode: number; body: ApiEr
     };
   }
   const message = err instanceof Error ? err.message : 'Internal server error';
-  return { statusCode: 500, body: { error: { code: 'internal_error', message } } };
+  return {
+    statusCode: 500,
+    body: { error: { code: 'internal_error', message } },
+  };
 }
 
 /** Install the not-found and error handlers on the Fastify instance. */
