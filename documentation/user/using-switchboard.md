@@ -66,6 +66,14 @@ curl -X POST http://localhost:8080/api/v1/numbers \
 
 ## 3. Place and receive calls
 
+The browser softphone registers to the engine automatically when the dashboard
+loads. The header shows its status next to the engine indicator: "phone ready"
+once registered. By default it registers as extension `1001`; to open a second
+softphone (for a browser-to-browser test), load the dashboard in another tab with
+`?ext=1002` in the URL. The signaling WebSocket connects directly to the engine's
+published port, so on a non-localhost host you need a secure (HTTPS) origin for
+the browser to grant microphone access.
+
 Open **Phone**. To **place a call** (your system's inbound direction), pick a
 destination (a dialable trunk, a saved number, or an ad-hoc SIP URI), optionally
 key in digits, and press Call. On answer the screen becomes the in-call view and

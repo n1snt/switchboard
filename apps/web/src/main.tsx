@@ -12,7 +12,25 @@ import { createRouter, RouterProvider } from '@tanstack/react-router';
 import { routeTree } from './routeTree.gen';
 import { createQueryClient } from '@/lib/query';
 import { ThemeProvider } from '@/lib/theme';
+import { resolveSoftphoneConfig } from '@/features/softphone/config';
+import { attachSoftphoneSession } from '@/features/softphone/session';
+import { SipjsAdapter } from '@/features/softphone/sipjsAdapter';
+import { useSoftphoneStore } from '@/stores/softphone';
 import '@/styles/index.css';
+
+// Wire the browser softphone to the engine: register over the SIP WebSocket and
+// route the session's lifecycle into the softphone store. The remote-audio
+// element lives outside React (created here at bootstrap) because SimpleUser
+// binds it at construction, before the first render. The SIP session is the
+// browser/WebRTC seam, excluded from coverage along with this bootstrap.
+function connectSoftphone(): void {
+  const config = resolveSoftphoneConfig(window.location, import.meta.env);
+  const remoteAudio = document.createElement('audio');
+  remoteAudio.autoplay = true;
+  document.body.appendChild(remoteAudio);
+  const adapter = new SipjsAdapter({ ...config, remoteAudio });
+  attachSoftphoneSession(adapter, useSoftphoneStore.getState());
+}
 
 const router = createRouter({ routeTree });
 
@@ -35,4 +53,5 @@ if (rootElement) {
       </QueryClientProvider>
     </StrictMode>,
   );
+  connectSoftphone();
 }

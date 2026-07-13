@@ -27,6 +27,9 @@ function makeFakeAdapter(): SipAdapter {
     hold: vi.fn(),
     sendDtmf: vi.fn(),
     onIncoming: vi.fn(),
+    onRegistrationChange: vi.fn(),
+    onEstablished: vi.fn(),
+    onEnded: vi.fn(),
     attachMedia: vi.fn(),
   };
 }
@@ -88,6 +91,9 @@ describe('nullSipAdapter', () => {
       nullSipAdapter.hold(true);
       nullSipAdapter.sendDtmf('1');
       nullSipAdapter.onIncoming(() => {});
+      nullSipAdapter.onRegistrationChange(() => {});
+      nullSipAdapter.onEstablished(() => {});
+      nullSipAdapter.onEnded(() => {});
       nullSipAdapter.attachMedia(null, null);
     }).not.toThrow();
   });

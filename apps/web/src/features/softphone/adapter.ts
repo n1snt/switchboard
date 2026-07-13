@@ -16,6 +16,10 @@ export interface IncomingCallInfo {
   via: string;
 }
 
+/** SIP registration outcomes the session reports back. A subset of the store's
+ * RegistrationStatus (which also has the transient `registering`). */
+export type SipRegistrationState = 'registered' | 'unregistered' | 'failed';
+
 /**
  * The imperative operations the store issues against the SIP session. Every
  * method returns void: the store fires and forgets, and the session reports
@@ -33,6 +37,12 @@ export interface SipAdapter {
   sendDtmf(digit: string): void;
   /** Register a callback invoked when a call arrives. */
   onIncoming(callback: (info: IncomingCallInfo) => void): void;
+  /** Register a callback invoked when the registration state changes. */
+  onRegistrationChange(callback: (status: SipRegistrationState) => void): void;
+  /** Register a callback invoked when the active call connects. */
+  onEstablished(callback: () => void): void;
+  /** Register a callback invoked when the active call ends (remote hangup/failure). */
+  onEnded(callback: () => void): void;
   /** Attach the local and remote media streams to audio elements. */
   attachMedia(
     local: HTMLAudioElement | null,
@@ -56,5 +66,8 @@ export const nullSipAdapter: SipAdapter = {
   hold: () => {},
   sendDtmf: () => {},
   onIncoming: () => {},
+  onRegistrationChange: () => {},
+  onEstablished: () => {},
+  onEnded: () => {},
   attachMedia: () => {},
 };
