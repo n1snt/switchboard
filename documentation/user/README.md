@@ -47,6 +47,9 @@ the address printed on startup (served by `switchboard-web`), create a trunk, an
 point your SIP application at the endpoint and credentials the dashboard shows
 you.
 
+New here? Follow [Your first call](first-call.md) for a step-by-step walkthrough
+of making and receiving a call between the dashboard and your own SIP application.
+
 ## Configure servers without the dashboard
 
 You can pre-configure SIP servers from the Compose environment, which is useful
@@ -76,6 +79,9 @@ These fill in as features are built. Each is first-class and example-driven. The
 label in parentheses is the implementation feature that delivers it (see the
 [developer roadmap](../dev/roadmap.md)).
 
+- [Your first call](first-call.md): a step-by-step walkthrough of making and
+  receiving a call between the dashboard and your own SIP application (for
+  example LiveKit), inbound and outbound.
 - [Running with Docker](running-with-docker.md): `docker compose up`, the dev
   override, and no-audio troubleshooting (feature 6).
 - [Using Switchboard](using-switchboard.md): trunks (quick add and the full form),
