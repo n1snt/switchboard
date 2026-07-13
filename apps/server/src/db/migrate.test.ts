@@ -24,7 +24,11 @@ afterEach(async () => {
 describe('migrate', () => {
   it('creates the full schema on a fresh database', async () => {
     const ran = await migrate(db);
-    expect(ran).toEqual(['0001_init', '0002_pjsip_realtime']);
+    expect(ran).toEqual([
+      '0001_init',
+      '0002_pjsip_realtime',
+      '0003_pjsip_identify',
+    ]);
 
     const tables = await db.introspection.getTables();
     const names = tables.map((t) => t.name);
@@ -38,6 +42,7 @@ describe('migrate', () => {
         'ps_endpoints',
         'ps_auths',
         'ps_aors',
+        'ps_endpoint_id_ips',
       ]),
     );
   });

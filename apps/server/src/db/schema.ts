@@ -108,6 +108,14 @@ export interface PsEndpointsTable {
   dtmf_mode: string | null;
 }
 
+// Source-IP identification for an `ip`-auth trunk (feature 16): matches an
+// inbound INVITE to its endpoint by sender address (res_pjsip_endpoint_identifier_ip).
+export interface PsEndpointIdIpsTable {
+  id: string;
+  endpoint: string | null;
+  match: string | null;
+}
+
 /**
  * The full database shape. `fault_profiles` is added by feature 26; it is absent
  * here so the interface only ever describes tables that a migration has created.
@@ -122,4 +130,5 @@ export interface Database {
   ps_aors: PsAorsTable;
   ps_auths: PsAuthsTable;
   ps_endpoints: PsEndpointsTable;
+  ps_endpoint_id_ips: PsEndpointIdIpsTable;
 }

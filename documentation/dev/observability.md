@@ -104,6 +104,39 @@ file to `/var/spool/asterisk/recording`, shared with the API at `/app/recordings
 (`SWITCHBOARD_RECORDINGS_DIR`), so the download route
 (`GET /api/v1/calls/:id/recording`) streams it back with a path-traversal guard.
 
+## Connecting an external SIP app (for example a LiveKit SIP service)
+
+Switchboard plays the carrier; the app under test is the far end. Direction is
+named from the app's point of view, matching how the app names its own trunks:
+
+- **The app receives a call** (inbound to it): the browser softphone places it,
+  Switchboard delivers it out the trunk to the app's SIP endpoint. Create a
+  trunk with `direction: inbound` (or `both`) and `target_host`/`target_port`
+  pointing at the app's SIP listener, plus a Number assigned to it; dial that
+  number from the dashboard's Phone screen.
+- **The app places a call** (outbound from it): the app dials out through a trunk
+  whose address is Switchboard's engine, the INVITE arrives on that trunk, and
+  Switchboard rings the browser softphone. Create a trunk with
+  `direction: outbound` (or `both`); the app's outbound trunk points at the
+  engine's SIP port.
+
+Two things have to line up for this to work:
+
+1. **Reachability.** The engine publishes SIP on port 5060 (UDP and TCP) and the
+   RTP media range (`docker-compose.yml`). An app on the same Docker network
+   dials the engine by service name; an app crossing the host boundary uses the
+   published ports, and `SWITCHBOARD_ADVERTISED_ADDRESS` must be an address the
+   app can route back to for audio (the default `127.0.0.1` only works when the
+   far end is on this host). A wrong advertised address is the classic one-way or
+   no-audio failure.
+
+2. **Trunk identification.** For Switchboard to know which trunk an inbound call
+   arrived on, the sender must be identifiable: use `auth_mode: digest` (matched
+   by username) or `auth_mode: ip` (matched by source address, provisioned as an
+   `identify` row from the trunk's `allowed_ips`; see
+   [engine-provisioning.md](engine-provisioning.md)). `auth_mode: none` accepts
+   anonymous calls but cannot attribute them to a specific trunk.
+
 ## Verification
 
 The coordinator, the trace capture, the record decision, and the ARI operations

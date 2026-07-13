@@ -16,6 +16,7 @@ async function removeRows(db: Db, id: string): Promise<void> {
   await db.deleteFrom('ps_endpoints').where('id', '=', id).execute();
   await db.deleteFrom('ps_auths').where('id', '=', id).execute();
   await db.deleteFrom('ps_aors').where('id', '=', id).execute();
+  await db.deleteFrom('ps_endpoint_id_ips').where('id', '=', id).execute();
 }
 
 /** A provisioner that writes PJSIP realtime rows for each trunk. */
@@ -70,6 +71,21 @@ export function createRealtimeProvisioner(db: Db): TrunkProvisioner {
           dtmf_mode: trunk.dtmf_mode,
         })
         .execute();
+
+      // Source-IP identification (feature 16): let Asterisk match an inbound
+      // INVITE from a known peer to this trunk by its source address. Only
+      // `ip`-auth trunks with at least one allowed address get an identify row;
+      // digest trunks are matched by username and need none.
+      if (trunk.auth_mode === 'ip' && trunk.allowed_ips.length > 0) {
+        await db
+          .insertInto('ps_endpoint_id_ips')
+          .values({
+            id: trunk.id,
+            endpoint: trunk.id,
+            match: trunk.allowed_ips.join(','),
+          })
+          .execute();
+      }
     },
 
     async remove(trunkId: string): Promise<void> {

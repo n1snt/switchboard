@@ -117,9 +117,8 @@ environment variable):
   never collide with the four-digit `1001`/`1002` webrtc endpoint ids.
 
   Also maps `identify` (used by `res_pjsip_endpoint_identifier_ip` to match
-  an inbound request to an endpoint by source IP alone) the same way, ahead
-  of a `ps_endpoint_id_ips` table actually existing — see "What is not yet
-  enforced" below.
+  an inbound request to an endpoint by source IP alone) the same way, backed
+  by the `ps_endpoint_id_ips` table — see "Source-IP identification" below.
 
 - **`engine/config/extconfig.conf`** — maps each realtime family name
   (`ps_endpoints`, `ps_auths`, `ps_aors`, `ps_endpoint_id_ips`) to the
@@ -175,18 +174,20 @@ below):
   dialplan — see "Dialplan contexts" below. An inbound-capable trunk
   (`direction` `inbound` or `both`) should set `context = switchboard-trunk`.
 
-### What is not yet enforced: `auth_mode: ip`
+### Source-IP identification: `auth_mode: ip`
 
-`sorcery.conf`/`extconfig.conf` map `identify` to a `ps_endpoint_id_ips`
-table, but nothing creates that table yet — only `ps_endpoints`/`ps_auths`/
-`ps_aors` are in scope for this feature. Until a follow-up adds it (matching
-its own standard columns: `id`, `endpoint`, `match` (a source
-address/CIDR), and optionally `match_header`/`srv_lookups`), a trunk with
-`auth_mode: ip` is not enforced at the SIP layer by the engine itself — the
-mapping is left in place (harmless: a missing table just logs a "no such
-table" warning per lookup, confirmed below) specifically so that adding
-enforcement later is a control-plane-only change, no engine config to
-revisit.
+An inbound call arriving on a trunk has to be attributed to that trunk for the
+control plane to route it (feature 16). A digest trunk is matched by username;
+an `auth_mode: ip` trunk is matched by the sender's source address through a
+PJSIP `identify` object. Migration `0003_pjsip_identify` creates the
+`ps_endpoint_id_ips` table (standard columns `id`, `endpoint`, `match`), and the
+trunk provisioner (`realtime-provisioner.ts`) writes one row per `ip`-mode trunk
+with `match` set to the trunk's `allowed_ips` (comma-joined). The
+`sorcery.conf`/`extconfig.conf` mappings that were already in place now resolve
+against a real table.
+
+The historical verification run below predates this table; the "no such table"
+warning it records no longer applies once migration `0003` has run.
 
 ### What is a known gap: `transport: tls`
 

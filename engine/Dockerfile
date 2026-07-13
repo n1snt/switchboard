@@ -96,4 +96,7 @@ CMD ["/usr/sbin/asterisk", "-vvvdddf", "-T", "-W", "-U", "asterisk", "-p"]
 # EXPOSE is documentation only (Compose's `ports:` is what actually
 # publishes anything); ARI + browser WebSocket signaling share one port.
 EXPOSE 8088/tcp
+# SIP signaling for trunks to/from an external app under test (features 16/17).
+EXPOSE 5060/udp
+EXPOSE 5060/tcp
 EXPOSE 10000-10099/udp

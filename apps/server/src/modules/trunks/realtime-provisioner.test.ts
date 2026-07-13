@@ -64,6 +64,35 @@ describe('realtime provisioner', () => {
     );
   });
 
+  it('writes an identify row for an ip-auth trunk and removes it on delete', async () => {
+    await provisioner.apply(
+      trunk({
+        id: 't-ip',
+        auth_mode: 'ip',
+        allowed_ips: ['10.0.0.5', '10.0.0.6'],
+      }),
+    );
+    const identify = await db
+      .selectFrom('ps_endpoint_id_ips')
+      .selectAll()
+      .where('id', '=', 't-ip')
+      .executeTakeFirst();
+    expect(identify?.endpoint).toBe('t-ip');
+    expect(identify?.match).toBe('10.0.0.5,10.0.0.6');
+
+    await provisioner.remove('t-ip');
+    expect(
+      await db.selectFrom('ps_endpoint_id_ips').selectAll().execute(),
+    ).toHaveLength(0);
+  });
+
+  it('writes no identify row for a non-ip trunk', async () => {
+    await provisioner.apply(trunk({ id: 't-noip', auth_mode: 'none' }));
+    expect(
+      await db.selectFrom('ps_endpoint_id_ips').selectAll().execute(),
+    ).toHaveLength(0);
+  });
+
   it('writes an auth row for a digest trunk', async () => {
     await provisioner.apply(
       trunk({ id: 't2', auth_mode: 'digest', username: 'u', password: 'p' }),

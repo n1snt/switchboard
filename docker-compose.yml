@@ -69,6 +69,20 @@ services:
       # cannot be split onto separate ports without publishing 8088 anyway,
       # so both ride along.
       - '8088:8088'
+      # SIP signaling for trunks (implementation.md features 16/17). An external
+      # SIP app under test — a self-hosted LiveKit SIP service, a softphone, a
+      # PBX — reaches Switchboard's trunks here, and Switchboard sends to it from
+      # here. The PJSIP transports (engine/config/pjsip.conf.template) bind the
+      # default 5060 for both UDP and TCP; publish both so the strict-transport
+      # trunk modes (data-model.md trunks.transport) both work. Published 1:1
+      # (host port == container port): the engine advertises this port in its
+      # SIP headers/SDP, so a host!=container mapping would break signaling the
+      # same way an RTP range mismatch breaks audio. Not needed when the far end
+      # is another container on the `switchboard` network (it dials the service
+      # name directly) or on Linux host networking; needed when the far end
+      # reaches the engine across the host boundary.
+      - '5060:5060/udp'
+      - '5060:5060/tcp'
       # RTP media. Driven by the same SWITCHBOARD_RTP_START/END variables as the
       # engine's rendered rtp.conf, so the published range and Asterisk's range
       # always agree; move both at once (e.g. a root .env with

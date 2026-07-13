@@ -196,20 +196,36 @@ describe('CallCoordinator — trunk caller (outbound, feature 16)', () => {
 });
 
 describe('CallCoordinator — recording (feature 24)', () => {
-  it('starts and stops a bridge recording when record-all is on', async () => {
+  it('starts and stops a bridge recording, exposing the file once it starts', async () => {
     const directory = makeDirectory({
       recordAll: vi.fn().mockResolvedValue(true),
     });
     const coord = coordinator(ops, directory);
 
     await coord.onStasisStart(softphoneCaller);
-    expect(events[0]?.call.recording).toBe('call-1.wav');
+    // Not recording yet: the callee has not answered, so no file is exposed.
+    expect(events[0]?.call.recording).toBeNull();
+    expect(ops.startBridgeRecording).not.toHaveBeenCalled();
 
     await coord.onStasisStart(calleeEntered);
     expect(ops.startBridgeRecording).toHaveBeenCalledWith('bridge-1', 'call-1');
+    expect(events.at(-1)?.call.recording).toBe('call-1.wav');
 
     await coord.onHangup('caller-1', 'normal');
     expect(ops.stopRecording).toHaveBeenCalledWith('call-1');
+    expect(events.at(-1)?.call.recording).toBe('call-1.wav');
+  });
+
+  it('does not start or stop a recording for a call that ends before answer', async () => {
+    const directory = makeDirectory({
+      recordAll: vi.fn().mockResolvedValue(true),
+    });
+    const coord = coordinator(ops, directory);
+    await coord.onStasisStart(softphoneCaller);
+    await coord.onHangup('caller-1', 'normal');
+    expect(ops.startBridgeRecording).not.toHaveBeenCalled();
+    expect(ops.stopRecording).not.toHaveBeenCalled();
+    expect(events.at(-1)?.call.recording).toBeNull();
   });
 
   it('logs but does not throw when stopping the recording fails', async () => {
@@ -221,6 +237,7 @@ describe('CallCoordinator — recording (feature 24)', () => {
     });
     const coord = coordinator(failing, directory);
     await coord.onStasisStart(softphoneCaller);
+    await coord.onStasisStart(calleeEntered);
     await coord.onHangup('caller-1', 'normal');
     expect(logger.warn).toHaveBeenCalledWith(
       expect.stringContaining('stop recording'),

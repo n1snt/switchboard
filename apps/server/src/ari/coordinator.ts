@@ -44,8 +44,10 @@ interface CallSession {
   from: string;
   to: string;
   trunkId: string | null;
-  /** The recording filename when this call is being recorded, else null. */
+  /** The recording filename when this call should be recorded, else null. */
   recording: string | null;
+  /** Whether bridge recording has actually started (set once both legs bridge). */
+  recordingStarted: boolean;
   startedAt: string;
   answeredAt?: string;
 }
@@ -190,6 +192,7 @@ export class CallCoordinator {
       to: plan.to,
       trunkId: plan.trunkId,
       recording: plan.recording,
+      recordingStarted: false,
       startedAt: this.now(),
     };
     await this.ops.answer(channelId);
@@ -231,6 +234,7 @@ export class CallCoordinator {
     await this.ops.addToBridge(session.bridgeId, channelId);
     if (session.recording !== null) {
       await this.ops.startBridgeRecording(session.bridgeId, session.callId);
+      session.recordingStarted = true;
     }
     this.publish('call.answered', session, 'answered');
   }
@@ -246,7 +250,7 @@ export class CallCoordinator {
         ? session.calleeChannelId
         : session.callerChannelId;
 
-    if (session.recording !== null) {
+    if (session.recordingStarted) {
       await this.safe(
         () => this.ops.stopRecording(session.callId),
         'stop recording',
@@ -304,7 +308,7 @@ export class CallCoordinator {
       ended_at: extra?.ended_at ?? null,
       hangup_cause: extra?.hangup_cause ?? null,
       codec: null,
-      recording: session.recording,
+      recording: session.recordingStarted ? session.recording : null,
     };
     this.bus.publish({ type, at: this.now(), call });
   }
