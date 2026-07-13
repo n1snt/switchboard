@@ -69,11 +69,13 @@ services:
       # cannot be split onto separate ports without publishing 8088 anyway,
       # so both ride along.
       - '8088:8088'
-      # RTP media. MUST match SWITCHBOARD_RTP_START/END above and
-      # rtp.conf.template's rendered rtpstart/rtpend, or calls connect with
-      # audio silently one-way or absent (the classic Docker+SIP failure
-      # mode; see documentation/dev/containers.md's troubleshooting note).
-      - '10000-10099:10000-10099/udp'
+      # RTP media. Driven by the same SWITCHBOARD_RTP_START/END variables as the
+      # engine's rendered rtp.conf, so the published range and Asterisk's range
+      # always agree; move both at once (e.g. a root .env with
+      # SWITCHBOARD_RTP_START=10200 / SWITCHBOARD_RTP_END=10299) to avoid a host
+      # port clash. A mismatch here is the classic Docker+SIP one-way/no-audio
+      # failure (documentation/dev/containers.md troubleshooting note).
+      - '${SWITCHBOARD_RTP_START:-10000}-${SWITCHBOARD_RTP_END:-10099}:${SWITCHBOARD_RTP_START:-10000}-${SWITCHBOARD_RTP_END:-10099}/udp'
     networks:
       - switchboard
     # No named volumes for /etc/asterisk: the engine's config is baked into

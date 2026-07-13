@@ -24,6 +24,16 @@ services:
       target: deps
     working_dir: /workspace
     command: ['pnpm', '--filter', '@switchboard/server', 'dev']
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/v1/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 5s
+      timeout: 3s
+      retries: 30
+      start_period: 60s
     environment:
       # Everything else is inherited from docker-compose.yml. Left
       # unset here: SWITCHBOARD_DATABASE_PATH / SWITCHBOARD_RECORDINGS_DIR,
@@ -84,9 +94,9 @@ services:
       - /workspace/apps/server/node_modules
       - /workspace/packages/shared/node_modules
       - /workspace/packages/cli/node_modules
-    ports:
-      # Vite's own dev server, hot module reload included. The base file's
-      # 8080:80 mapping is still inherited (Compose concatenates `ports:`
-      # rather than replacing it) but is inert here: nginx never runs in
-      # this override, so nothing listens on 80 in dev mode. Use 5173.
+    # `!override` replaces the inherited ports instead of concatenating. Without
+    # it, the base file's 8080:80 mapping still binds host port 8080 even though
+    # nginx never runs in dev, so a host process on 8080 (or the prod stack)
+    # breaks `docker compose up`. In dev the dashboard is at http://localhost:5173.
+    ports: !override
       - '5173:5173'
