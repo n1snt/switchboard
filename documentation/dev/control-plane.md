@@ -167,24 +167,29 @@ are implemented; faults arrive in Part F.
 - **Numbers** (feature 14) validate that their trunk exists and carries inbound
   calls. **Routes** (feature 15) are CRUD plus the pure `matchRoute` (pattern match
   with priority) the call features call.
-- **Placing a call** (features 16 and 17) is backed by the pure helpers in
-  `calls/dialing.ts`: `resolveDialTarget` (a saved number to its trunk, a trunk by
-  name, or an ad-hoc SIP URI) and `applyDialRewrite` (technical prefix and rewrite
-  rules). The originate and bridge happen against a real engine.
+- **Running a call** (features 16 and 17) is the coordinator's job: it reads the
+  caller's endpoint and dialed target off the channel, decides the direction and
+  target with the pure `planCall` (`calls/call-plan.ts`, composing `matchRoute`
+  and `calls/dialing.ts`'s `planOutgoing`/`applyDialRewrite`), and originates and
+  bridges over ARI. A call on a trunk rings the softphone (outbound); the
+  softphone dialling a number, trunk, or SIP URI reaches the system-under-test
+  (inbound). See [observability.md](observability.md).
 - **Call persistence** (feature 21) is `CallWriter`, a bus subscriber that upserts
   the full call snapshot carried by every event, so the `calls` table always
   reflects the current timeline.
 - **The call log** (feature 22) is the `calls` list endpoint, filterable by
   direction (placed/received, mapped to inbound/outbound), trunk, state, and time.
 - **The SIP trace** (feature 23): `sip-trace-parser.ts` turns Asterisk's PJSIP
-  logger output into ladder entries, stored per call in an `InMemorySipTraceStore`
-  and returned by the call detail endpoint. The live capture from the engine is
-  wired against a running engine.
+  logger output into ladder entries, and `SipTraceCapture` fills the per-call
+  `InMemorySipTraceStore` the detail endpoint reads by tailing the engine's PJSIP
+  log (`ari/pjsip-log-source.ts`, `SWITCHBOARD_PJSIP_TRACE_FILE`). See
+  [observability.md](observability.md).
 - **Recording** (feature 24): `resolveRecordEnabled` decides most-specific-first
   (per-call, then per-trunk, then the global setting or `SWITCHBOARD_RECORD_ALL`),
-  and a binary download route streams a finished recording from the recordings
-  directory (with a path-traversal guard). The engine (MixMonitor over ARI) does
-  the capture.
+  the coordinator records the mixing bridge over ARI when a call should be
+  recorded, and a binary download route streams the finished file from the
+  recordings directory (with a path-traversal guard). See
+  [observability.md](observability.md).
 - **Settings** (feature 25) read and write the global options, with defaults from
   the schema and an environment override applied on boot.
 
@@ -201,6 +206,7 @@ are implemented; faults arrive in Part F.
 | `SWITCHBOARD_ARI_APP` | `switchboard` | Stasis application name (matches the dialplan). |
 | `SWITCHBOARD_RECORDINGS_DIR` | `./recordings` | Recording output directory. |
 | `SWITCHBOARD_RECORD_ALL` | `false` | Record every call by default. |
+| `SWITCHBOARD_PJSIP_TRACE_FILE` | unset | Asterisk PJSIP log to tail for SIP traces (feature 23). |
 | `SWITCHBOARD_SIP_SERVERS` | `[]` | JSON array of trunks to seed (feature 13). |
 | `SWITCHBOARD_CORS_ORIGIN` | unset | Set only for the direct-origin alternative. |
 

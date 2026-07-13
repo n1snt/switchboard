@@ -26,6 +26,9 @@ const RawEnvSchema = z.object({
   SWITCHBOARD_ARI_APP: z.string().min(1).default('switchboard'),
   SWITCHBOARD_RECORDINGS_DIR: z.string().min(1).default('./recordings'),
   SWITCHBOARD_RECORD_ALL: z.preprocess(envBool, z.boolean()).default(false),
+  // Path to Asterisk's PJSIP SIP-message log on the shared volume; when set, the
+  // control plane tails it to capture each call's SIP trace (feature 23).
+  SWITCHBOARD_PJSIP_TRACE_FILE: z.string().min(1).optional(),
   SWITCHBOARD_SIP_SERVERS: z.string().default('[]'),
   // Unset means single-origin (no CORS headers); set it for the direct-origin
   // alternative where the browser talks to the API on a different host.
@@ -46,6 +49,8 @@ export interface Config {
   ari: AriConfig;
   recordingsDir: string;
   recordAll: boolean;
+  /** Path to Asterisk's PJSIP log to tail for SIP traces, or undefined to disable. */
+  pjsipTraceFile: string | undefined;
   /** Raw SWITCHBOARD_SIP_SERVERS JSON; parsed by feature 13. */
   sipServers: string;
   /** CORS origin, or false to emit no CORS headers (single-origin default). */
@@ -77,6 +82,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     },
     recordingsDir: raw.SWITCHBOARD_RECORDINGS_DIR,
     recordAll: raw.SWITCHBOARD_RECORD_ALL,
+    pjsipTraceFile: raw.SWITCHBOARD_PJSIP_TRACE_FILE,
     sipServers: raw.SWITCHBOARD_SIP_SERVERS,
     corsOrigin: raw.SWITCHBOARD_CORS_ORIGIN ?? false,
   };

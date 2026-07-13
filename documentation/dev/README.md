@@ -16,6 +16,8 @@ Documentation for people building Switchboard. For using the tool, see the
 - [engine-provisioning.md](engine-provisioning.md): how trunks become live Asterisk
   endpoints through PJSIP Realtime (the shared SQLite file, sorcery, and the
   trunk-call dialplan).
+- [observability.md](observability.md): how a call is run and observed at runtime:
+  the call coordinator (both directions), the SIP trace capture, and recording.
 - [data-model.md](data-model.md): the SQLite storage schema for trunks, numbers,
   routes, calls, settings, and fault profiles.
 - [dashboard.md](dashboard.md): the dashboard screens, the softphone experience,

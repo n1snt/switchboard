@@ -2,9 +2,17 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { nanoid } from 'nanoid';
-import type { Call, CallState } from '@switchboard/shared';
+import type {
+  Call,
+  CallDirection,
+  CallState,
+  PhoneNumber,
+  Route,
+  Trunk,
+} from '@switchboard/shared';
 import type { EventBus } from '../events/bus';
 import type { Logger } from '../logger';
+import { endpointFromChannelName, planCall } from '../modules/calls/call-plan';
 import type { AriOperations } from './operations';
 import {
   ChannelHangupRequestEventSchema,
@@ -13,24 +21,41 @@ import {
   type StasisStartEvent,
 } from './events';
 
-// The walking-skeleton call logic (feature 9). It bridges two legs through ARI so
-// two browser tabs get clean two-way audio, and publishes the call lifecycle on
-// the event bus. Later features (16/17) layer trunk auth, routing, and direction
-// on top of the same choreography.
+// The call choreography over ARI. A caller channel enters Stasis, the coordinator
+// plans the call (direction, parties, trunk, and callee endpoint; see
+// call-plan.ts), answers the caller, bridges it, originates the callee leg back
+// into Stasis, and publishes the lifecycle on the event bus. It handles both
+// directions on the same choreography: a call arriving on a provisioned trunk
+// rings the softphone (feature 16, outbound), and the softphone dialling a
+// number, trunk, or SIP URI reaches the system-under-test (feature 17, inbound);
+// a bare extension is the browser-to-browser walking skeleton (feature 9).
 //
-// Dialplan contract: an inbound (caller) channel enters Stasis(<app>) with no
-// extra arguments and its dialed target in `channel.dialplan.exten`. The
-// originated callee leg re-enters Stasis with args ['dialed', <bridgeId>].
+// Dialplan contract: a caller channel enters Stasis(<app>) with no extra
+// arguments and its dialed target in `channel.dialplan.exten`; the caller's
+// PJSIP endpoint (`channel.name`) identifies the trunk it arrived on, if any.
+// The originated callee leg re-enters Stasis with args ['dialed', <bridgeId>].
 
 interface CallSession {
   callId: string;
   bridgeId: string;
   callerChannelId: string;
   calleeChannelId?: string;
-  dialed: string;
+  direction: CallDirection;
   from: string;
+  to: string;
+  trunkId: string | null;
+  /** The recording filename when this call is being recorded, else null. */
+  recording: string | null;
   startedAt: string;
   answeredAt?: string;
+}
+
+/** What the coordinator reads from the control plane to plan each call. */
+export interface CallDirectory {
+  trunks(): Promise<Trunk[]>;
+  numbers(): Promise<PhoneNumber[]>;
+  routes(): Promise<Route[]>;
+  recordAll(): Promise<boolean>;
 }
 
 export interface CoordinatorDeps {
@@ -38,6 +63,7 @@ export interface CoordinatorDeps {
   bus: EventBus;
   appName: string;
   logger: Logger;
+  directory: CallDirectory;
   /** Injectable clock and id generator for deterministic tests. */
   now?: () => string;
   idGen?: () => string;
@@ -63,6 +89,7 @@ export class CallCoordinator {
   private readonly bus: EventBus;
   private readonly appName: string;
   private readonly logger: Logger;
+  private readonly directory: CallDirectory;
   private readonly now: () => string;
   private readonly idGen: () => string;
   private readonly byChannel = new Map<string, CallSession>();
@@ -73,6 +100,7 @@ export class CallCoordinator {
     this.bus = deps.bus;
     this.appName = deps.appName;
     this.logger = deps.logger;
+    this.directory = deps.directory;
     this.now = deps.now ?? ((): string => new Date().toISOString());
     this.idGen = deps.idGen ?? ((): string => nanoid());
   }
@@ -111,27 +139,12 @@ export class CallCoordinator {
     };
   }
 
-  /** Caller enters Stasis: answer, bridge, and originate the callee leg. */
+  /** Caller enters Stasis: plan the call, answer, bridge, and originate the callee. */
   async onStasisStart(event: StasisStartEvent): Promise<void> {
     const channelId = event.channel.id;
 
     if (event.args[0] === 'dialed') {
-      const bridgeId = event.args[1];
-      const session =
-        bridgeId === undefined ? undefined : this.byBridge.get(bridgeId);
-      if (!session) {
-        this.logger.warn(
-          `ari: callee leg ${channelId} with no matching bridge; hanging up`,
-        );
-        await this.ops.hangup(channelId);
-        return;
-      }
-      session.calleeChannelId = channelId;
-      session.answeredAt = this.now();
-      this.byChannel.set(channelId, session);
-      await this.ops.answer(channelId);
-      await this.ops.addToBridge(session.bridgeId, channelId);
-      this.publish('call.answered', session, 'answered');
+      await this.onCalleeEntered(channelId, event.args[1]);
       return;
     }
 
@@ -144,12 +157,39 @@ export class CallCoordinator {
       return;
     }
 
-    const session: CallSession = {
-      callId: this.idGen(),
-      bridgeId: '',
-      callerChannelId: channelId,
+    const [trunks, numbers, routes, recordAll] = await Promise.all([
+      this.directory.trunks(),
+      this.directory.numbers(),
+      this.directory.routes(),
+      this.directory.recordAll(),
+    ]);
+    const endpoint = endpointFromChannelName(event.channel.name);
+    const callerTrunk =
+      endpoint === undefined
+        ? undefined
+        : trunks.find((trunk) => trunk.id === endpoint);
+
+    const callId = this.idGen();
+    const plan = planCall({
+      callId,
       dialed,
       from: event.channel.caller?.number ?? channelId,
+      callerTrunk,
+      numbers,
+      trunks,
+      routes,
+      recordAll,
+    });
+
+    const session: CallSession = {
+      callId,
+      bridgeId: '',
+      callerChannelId: channelId,
+      direction: plan.direction,
+      from: plan.from,
+      to: plan.to,
+      trunkId: plan.trunkId,
+      recording: plan.recording,
       startedAt: this.now(),
     };
     await this.ops.answer(channelId);
@@ -161,7 +201,7 @@ export class CallCoordinator {
     this.publish('call.ringing', session, 'ringing');
 
     const calleeId = await this.ops.originate({
-      endpoint: `PJSIP/${dialed}`,
+      endpoint: plan.calleeEndpoint,
       app: this.appName,
       appArgs: ['dialed', session.bridgeId],
       callerId: session.from,
@@ -170,7 +210,32 @@ export class CallCoordinator {
     this.byChannel.set(calleeId, session);
   }
 
-  /** Either leg hangs up: tear the bridge down and end the other leg. */
+  /** Callee leg re-enters: answer, bridge, start recording, and mark answered. */
+  private async onCalleeEntered(
+    channelId: string,
+    bridgeId: string | undefined,
+  ): Promise<void> {
+    const session =
+      bridgeId === undefined ? undefined : this.byBridge.get(bridgeId);
+    if (!session) {
+      this.logger.warn(
+        `ari: callee leg ${channelId} with no matching bridge; hanging up`,
+      );
+      await this.ops.hangup(channelId);
+      return;
+    }
+    session.calleeChannelId = channelId;
+    session.answeredAt = this.now();
+    this.byChannel.set(channelId, session);
+    await this.ops.answer(channelId);
+    await this.ops.addToBridge(session.bridgeId, channelId);
+    if (session.recording !== null) {
+      await this.ops.startBridgeRecording(session.bridgeId, session.callId);
+    }
+    this.publish('call.answered', session, 'answered');
+  }
+
+  /** Either leg hangs up: stop recording, tear the bridge down, end the other leg. */
   async onHangup(channelId: string, cause: string): Promise<void> {
     const session = this.byChannel.get(channelId);
     if (!session) {
@@ -181,6 +246,12 @@ export class CallCoordinator {
         ? session.calleeChannelId
         : session.callerChannelId;
 
+    if (session.recording !== null) {
+      await this.safe(
+        () => this.ops.stopRecording(session.callId),
+        'stop recording',
+      );
+    }
     await this.safe(
       () => this.ops.destroyBridge(session.bridgeId),
       'destroy bridge',
@@ -223,17 +294,17 @@ export class CallCoordinator {
   ): void {
     const call: Call = {
       id: session.callId,
-      direction: 'outbound',
+      direction: session.direction,
       from_number: session.from,
-      to_number: session.dialed,
-      trunk_id: null,
+      to_number: session.to,
+      trunk_id: session.trunkId,
       state,
       started_at: session.startedAt,
       answered_at: session.answeredAt ?? null,
       ended_at: extra?.ended_at ?? null,
       hangup_cause: extra?.hangup_cause ?? null,
       codec: null,
-      recording: null,
+      recording: session.recording,
     };
     this.bus.publish({ type, at: this.now(), call });
   }

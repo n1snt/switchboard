@@ -29,6 +29,9 @@ FROM andrius/asterisk:21.12.3_debian-trixie
 # Plain, non-templated config.
 COPY engine/config/http.conf /etc/asterisk/http.conf
 COPY engine/config/extensions.conf /etc/asterisk/extensions.conf
+# Logging config so the PJSIP SIP-message log lands in a file the control plane
+# tails for the per-call SIP trace (implementation.md feature 23).
+COPY engine/config/logger.conf /etc/asterisk/logger.conf
 
 # PJSIP realtime plumbing (implementation.md feature 11, Decision D1): also
 # plain/non-templated, since none of these three reference an environment

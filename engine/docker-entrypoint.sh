@@ -35,4 +35,17 @@ for template in /etc/asterisk/*.conf.template; do
   envsubst "$VARS" < "$template" > "${template%.template}"
 done
 
+# Turn on PJSIP SIP-message logging so switchboard-api can capture the SIP trace
+# per call (implementation.md feature 23). Best-effort and backgrounded: it waits
+# for the CLI socket to come up, enables the logger, then exits; a failure here
+# never blocks the engine from starting. Verified against a running engine.
+(
+  for _ in $(seq 1 30); do
+    if asterisk -rx 'pjsip set logger on' >/dev/null 2>&1; then
+      break
+    fi
+    sleep 1
+  done
+) &
+
 exec /usr/local/bin/entrypoint.sh "$@"

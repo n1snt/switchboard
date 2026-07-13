@@ -6,11 +6,18 @@ import type { Client } from 'ari-client';
 import type { CallEvent } from '@switchboard/shared';
 import { EventBus } from '../events/bus';
 import type { Logger } from '../logger';
-import { createAri } from './index';
+import { createAri, type CallDirectory } from './index';
 
 const logger: Logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
 const flush = (): Promise<void> =>
   new Promise((resolve) => setImmediate(resolve));
+
+const directory: CallDirectory = {
+  trunks: vi.fn().mockResolvedValue([]),
+  numbers: vi.fn().mockResolvedValue([]),
+  routes: vi.fn().mockResolvedValue([]),
+  recordAll: vi.fn().mockResolvedValue(false),
+};
 
 function makeClient() {
   const listeners = new Map<string, ((...args: unknown[]) => void)[]>();
@@ -52,6 +59,7 @@ describe('createAri', () => {
       appName: 'switchboard',
       bus,
       logger,
+      directory,
       now: () => '2026-07-13T10:00:00.000Z',
       idGen: () => 'call-1',
     });
@@ -85,6 +93,7 @@ describe('createAri', () => {
       appName: 'switchboard',
       bus,
       logger,
+      directory,
     });
     await ari.start();
     emit('StasisStart', {

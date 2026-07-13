@@ -4,76 +4,85 @@
 import { describe, expect, it } from 'vitest';
 import type { PhoneNumber, Trunk } from '@switchboard/shared';
 import { NUMBER_EXAMPLE, TRUNK_EXAMPLE } from '@switchboard/shared';
-import { applyDialRewrite, resolveDialTarget } from './dialing';
+import { applyDialRewrite, planOutgoing } from './dialing';
 
 describe('applyDialRewrite', () => {
-  it('returns the input unchanged with no rules or prefix', () => {
+  it('returns the number unchanged with no rules or prefix', () => {
     expect(applyDialRewrite('+14155550123', { rules: [] })).toBe(
       '+14155550123',
     );
   });
 
-  it('applies rewrite rules', () => {
+  it('ignores an empty technical prefix', () => {
     expect(
-      applyDialRewrite('+14155550123', {
-        rules: [{ match: '^\\+1', replace: '1' }],
-      }),
+      applyDialRewrite('14155550123', { tech_prefix: '', rules: [] }),
     ).toBe('14155550123');
   });
 
-  it('prepends the technical prefix', () => {
+  it('applies rewrite rules in order, then the technical prefix', () => {
     expect(
-      applyDialRewrite('14155550123', { tech_prefix: '9011', rules: [] }),
-    ).toBe('901114155550123');
+      applyDialRewrite('+14155550123', {
+        tech_prefix: '9011',
+        rules: [{ match: '^\\+1', replace: '' }],
+      }),
+    ).toBe('90114155550123');
   });
 });
 
-describe('resolveDialTarget', () => {
-  const trunk: Trunk = { ...TRUNK_EXAMPLE, id: 't1', name: 'agent-dev' };
-  const number: PhoneNumber = {
-    ...NUMBER_EXAMPLE,
-    e164: '+14155550123',
-    trunk_id: 't1',
-  };
+describe('planOutgoing', () => {
+  const trunk: Trunk = { ...TRUNK_EXAMPLE };
+  const number: PhoneNumber = { ...NUMBER_EXAMPLE };
 
-  it('resolves an ad-hoc SIP URI', () => {
+  it('dials an ad-hoc SIP URI as-is', () => {
     expect(
-      resolveDialTarget('sip:agent@10.0.0.5', { numbers: [], trunks: [] }),
+      planOutgoing('sip:agent@10.0.0.5', { numbers: [], trunks: [] }),
     ).toEqual({
-      kind: 'uri',
       endpoint: 'sip:agent@10.0.0.5',
+      trunkId: null,
+      toNumber: 'sip:agent@10.0.0.5',
     });
   });
 
-  it('resolves a saved number to its trunk', () => {
+  it('routes a saved number through its trunk with the dial rewrite applied', () => {
+    const rewriting: Trunk = {
+      ...trunk,
+      dial_rewrite: {
+        tech_prefix: '9011',
+        rules: [{ match: '^\\+', replace: '' }],
+      },
+    };
     expect(
-      resolveDialTarget('+14155550123', { numbers: [number], trunks: [trunk] }),
+      planOutgoing(number.e164, { numbers: [number], trunks: [rewriting] }),
     ).toEqual({
-      kind: 'number',
-      endpoint: 'PJSIP/t1',
-      trunkId: 't1',
+      endpoint: `PJSIP/901114155550123@${trunk.id}`,
+      trunkId: trunk.id,
+      toNumber: number.e164,
     });
   });
 
-  it('resolves a trunk by name', () => {
+  it('dials a trunk by name', () => {
+    expect(planOutgoing(trunk.name, { numbers: [], trunks: [trunk] })).toEqual({
+      endpoint: `PJSIP/${trunk.id}`,
+      trunkId: trunk.id,
+      toNumber: trunk.name,
+    });
+  });
+
+  it('falls back to a bare endpoint when a number references a missing trunk', () => {
     expect(
-      resolveDialTarget('agent-dev', { numbers: [], trunks: [trunk] }),
+      planOutgoing(number.e164, { numbers: [number], trunks: [] }),
     ).toEqual({
-      kind: 'trunk',
-      endpoint: 'PJSIP/t1',
-      trunkId: 't1',
+      endpoint: `PJSIP/${number.e164}`,
+      trunkId: null,
+      toNumber: number.e164,
     });
   });
 
-  it('returns undefined when a number references a missing trunk', () => {
-    expect(
-      resolveDialTarget('+14155550123', { numbers: [number], trunks: [] }),
-    ).toBeUndefined();
-  });
-
-  it('returns undefined when nothing matches', () => {
-    expect(
-      resolveDialTarget('unknown', { numbers: [], trunks: [] }),
-    ).toBeUndefined();
+  it('dials an unmatched string as a bare endpoint (browser-to-browser)', () => {
+    expect(planOutgoing('1002', { numbers: [], trunks: [] })).toEqual({
+      endpoint: 'PJSIP/1002',
+      trunkId: null,
+      toNumber: '1002',
+    });
   });
 });

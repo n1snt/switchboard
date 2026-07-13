@@ -3,9 +3,9 @@
 
 import type { DialRewrite, PhoneNumber, Trunk } from '@switchboard/shared';
 
-// Features 16/17: the pure logic behind placing a call from the softphone. The
-// coordinator uses these to resolve what to originate and how to format the
-// dialed string; the ARI origination and bridging happen against a real engine.
+// Feature 17: the pure logic behind the softphone placing a call. The coordinator
+// uses this to resolve what to originate over ARI; the origination and bridging
+// happen against a real engine.
 
 /** Apply a trunk's rewrite rules then its technical prefix to a dialed string. */
 export function applyDialRewrite(dialed: string, rewrite: DialRewrite): string {
@@ -19,46 +19,50 @@ export function applyDialRewrite(dialed: string, rewrite: DialRewrite): string {
   return result;
 }
 
-export interface DialTarget {
-  kind: 'number' | 'trunk' | 'uri';
-  /** The Asterisk endpoint or SIP URI to originate to. */
+export interface OutgoingPlan {
+  /** The ARI endpoint the callee leg is originated to. */
   endpoint: string;
-  trunkId?: string;
+  /** The trunk the call rides, or null for a SIP URI or a bare extension. */
+  trunkId: string | null;
+  /** The target recorded as the call's to_number. */
+  toNumber: string;
 }
 
 /**
- * Resolve what the softphone dialed to a call target: an ad-hoc SIP URI, a saved
- * number (routed to its trunk), or a trunk by name. Returns undefined when
- * nothing matches.
+ * Resolve what the softphone dialed to an origination plan: an ad-hoc SIP URI is
+ * dialed as-is; a saved number is sent through its inbound trunk with the trunk's
+ * dial rewrite applied; a trunk name is dialed through that trunk; anything else
+ * is a bare endpoint (the browser-to-browser walking skeleton, e.g. `1002`).
  */
-export function resolveDialTarget(
+export function planOutgoing(
   dialed: string,
   data: { numbers: PhoneNumber[]; trunks: Trunk[] },
-): DialTarget | undefined {
+): OutgoingPlan {
   if (dialed.startsWith('sip:')) {
-    return { kind: 'uri', endpoint: dialed };
+    return { endpoint: dialed, trunkId: null, toNumber: dialed };
   }
 
   const number = data.numbers.find((n) => n.e164 === dialed);
-  if (number) {
+  if (number !== undefined) {
     const trunk = data.trunks.find((t) => t.id === number.trunk_id);
-    if (trunk) {
+    if (trunk !== undefined) {
+      const rewritten = applyDialRewrite(dialed, trunk.dial_rewrite);
       return {
-        kind: 'number',
-        endpoint: `PJSIP/${trunk.id}`,
+        endpoint: `PJSIP/${rewritten}@${trunk.id}`,
         trunkId: trunk.id,
+        toNumber: dialed,
       };
     }
   }
 
-  const byName = data.trunks.find((t) => t.name === dialed);
-  if (byName) {
+  const named = data.trunks.find((t) => t.name === dialed);
+  if (named !== undefined) {
     return {
-      kind: 'trunk',
-      endpoint: `PJSIP/${byName.id}`,
-      trunkId: byName.id,
+      endpoint: `PJSIP/${named.id}`,
+      trunkId: named.id,
+      toNumber: dialed,
     };
   }
 
-  return undefined;
+  return { endpoint: `PJSIP/${dialed}`, trunkId: null, toNumber: dialed };
 }

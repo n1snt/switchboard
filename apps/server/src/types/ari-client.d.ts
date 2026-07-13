@@ -28,6 +28,15 @@ declare module 'ari-client' {
     create(params: { type: string }): Promise<Bridge>;
     destroy(params: { bridgeId: string }): Promise<void>;
     addChannel(params: { bridgeId: string; channel: string }): Promise<void>;
+    record(params: {
+      bridgeId: string;
+      name: string;
+      format: string;
+    }): Promise<{ name: string }>;
+  }
+
+  export interface Recordings {
+    stop(params: { recordingName: string }): Promise<void>;
   }
 
   export type AriEventListener = (...args: unknown[]) => void;
@@ -39,6 +48,7 @@ declare module 'ari-client' {
     stop(): void;
     channels: Channels;
     bridges: Bridges;
+    recordings: Recordings;
   }
 
   export function connect(

@@ -15,9 +15,13 @@ function fakeClient() {
     create: vi.fn().mockResolvedValue({ id: 'bridge-1' }),
     destroy: vi.fn().mockResolvedValue(undefined),
     addChannel: vi.fn().mockResolvedValue(undefined),
+    record: vi.fn().mockResolvedValue({ name: 'call-1' }),
   };
-  const client = { channels, bridges } as unknown as Client;
-  return { client, channels, bridges };
+  const recordings = {
+    stop: vi.fn().mockResolvedValue(undefined),
+  };
+  const client = { channels, bridges, recordings } as unknown as Client;
+  return { client, channels, bridges, recordings };
 }
 
 describe('createAriOperations', () => {
@@ -73,5 +77,20 @@ describe('createAriOperations', () => {
       app: 'switchboard',
       appArgs: '',
     });
+  });
+
+  it('records a bridge to wav and stops a recording by name', async () => {
+    const { client, bridges, recordings } = fakeClient();
+    const ops = createAriOperations(client);
+
+    await ops.startBridgeRecording('bridge-1', 'call-1');
+    expect(bridges.record).toHaveBeenCalledWith({
+      bridgeId: 'bridge-1',
+      name: 'call-1',
+      format: 'wav',
+    });
+
+    await ops.stopRecording('call-1');
+    expect(recordings.stop).toHaveBeenCalledWith({ recordingName: 'call-1' });
   });
 });

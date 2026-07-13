@@ -14,6 +14,7 @@ describe('loadConfig', () => {
     expect(config.ari.app).toBe('switchboard');
     expect(config.sipServers).toBe('[]');
     expect(config.databasePath).toContain('switchboard.sqlite');
+    expect(config.pjsipTraceFile).toBeUndefined();
   });
 
   it('reads and coerces provided values', () => {
@@ -23,12 +24,14 @@ describe('loadConfig', () => {
       SWITCHBOARD_RECORD_ALL: 'true',
       SWITCHBOARD_CORS_ORIGIN: 'http://localhost:5173',
       SWITCHBOARD_ARI_URL: 'http://engine:8088',
+      SWITCHBOARD_PJSIP_TRACE_FILE: '/var/log/asterisk/messages',
     });
     expect(config.host).toBe('0.0.0.0');
     expect(config.port).toBe(8080);
     expect(config.recordAll).toBe(true);
     expect(config.corsOrigin).toBe('http://localhost:5173');
     expect(config.ari.url).toBe('http://engine:8088');
+    expect(config.pjsipTraceFile).toBe('/var/log/asterisk/messages');
   });
 
   it('treats record-all values other than true/1 as false', () => {

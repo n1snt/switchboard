@@ -32,6 +32,9 @@ export default defineConfig({
         // Thin seam over the real ari-client library, proven against a running
         // engine (the connection logic is tested with an injected connector).
         'apps/server/src/ari/connect.ts',
+        // Filesystem tail of Asterisk's PJSIP log on the shared volume, proven
+        // against a running engine (the trace capture it feeds is unit-tested).
+        'apps/server/src/ari/pjsip-log-source.ts',
         'apps/web/src/main.tsx',
         'apps/web/src/routeTree.gen.ts',
         'apps/web/src/**/*.gen.ts',

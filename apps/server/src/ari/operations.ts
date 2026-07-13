@@ -26,6 +26,10 @@ export interface AriOperations {
   addToBridge(bridgeId: string, channelId: string): Promise<void>;
   /** Originate a channel and return its id. */
   originate(params: OriginateParams): Promise<string>;
+  /** Record the mixed audio of a bridge to `<name>.wav` (feature 24). */
+  startBridgeRecording(bridgeId: string, name: string): Promise<void>;
+  /** Stop a recording started with {@link startBridgeRecording}. */
+  stopRecording(name: string): Promise<void>;
 }
 
 /** Adapt a connected `ari-client` instance to the {@link AriOperations} surface. */
@@ -55,6 +59,12 @@ export function createAriOperations(client: Client): AriOperations {
         ...(params.callerId === undefined ? {} : { callerId: params.callerId }),
       });
       return channel.id;
+    },
+    async startBridgeRecording(bridgeId, name) {
+      await client.bridges.record({ bridgeId, name, format: 'wav' });
+    },
+    async stopRecording(name) {
+      await client.recordings.stop({ recordingName: name });
     },
   };
 }

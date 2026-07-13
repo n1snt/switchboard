@@ -80,11 +80,18 @@ services:
       - switchboard
     # No named volumes for /etc/asterisk: the engine's config is baked into
     # the image (COPY in engine/Dockerfile) since it is meant to be static
-    # and minimal, not host-editable. /var/spool/asterisk/monitor is shared
-    # with switchboard-api ahead of call recording (implementation.md
-    # feature 24), since that is where Asterisk's MixMonitor will write.
+    # and minimal, not host-editable. /var/spool/asterisk/recording is shared
+    # with switchboard-api for call recording (implementation.md feature 24):
+    # the control plane records a bridge over ARI, which writes the mixed
+    # <call-id>.wav there, and switchboard-api serves it back for playback and
+    # download from the same volume mounted at /app/recordings.
     volumes:
-      - switchboard-recordings:/var/spool/asterisk/monitor
+      - switchboard-recordings:/var/spool/asterisk/recording
+      # PJSIP SIP-message log, shared read-only with switchboard-api, which
+      # tails it for the per-call SIP trace (implementation.md feature 23).
+      # engine/config/logger.conf writes it; docker-entrypoint.sh turns the
+      # PJSIP logger on so the SIP frames actually reach it.
+      - switchboard-pjsip-log:/var/log/asterisk
       # switchboard-db-data is the SAME volume switchboard-api mounts at
       # /app/data below — Decision D2, one SQLite file. Mounted here so
       # PJSIP realtime (config/sorcery.conf + config/extconfig.conf +
@@ -128,9 +135,14 @@ services:
       SWITCHBOARD_ARI_APP: switchboard
       SWITCHBOARD_SIP_SERVERS: ${SWITCHBOARD_SIP_SERVERS:-[]}
       SWITCHBOARD_RECORD_ALL: ${SWITCHBOARD_RECORD_ALL:-false}
+      # Asterisk's PJSIP message log on the shared log volume; the control plane
+      # tails it to capture each call's SIP trace (implementation.md feature 23).
+      SWITCHBOARD_PJSIP_TRACE_FILE: /var/log/asterisk/messages
     volumes:
       - switchboard-db-data:/app/data
       - switchboard-recordings:/app/recordings
+      # Read-only: the engine writes this log; the API only reads it.
+      - switchboard-pjsip-log:/var/log/asterisk:ro
     depends_on:
       switchboard-engine:
         condition: service_healthy
@@ -173,7 +185,10 @@ volumes:
   # trunks switchboard-api provisions — see
   # documentation/dev/engine-provisioning.md.
   switchboard-db-data:
-  # Call recordings (implementation.md feature 24). Shared between the
-  # engine (which writes them via MixMonitor) and the API (which serves
-  # playback/download).
+  # Call recordings (implementation.md feature 24). Shared between the engine
+  # (which records a bridge over ARI to <call-id>.wav) and the API (which
+  # serves playback/download).
   switchboard-recordings:
+  # Asterisk's PJSIP SIP-message log (implementation.md feature 23). Written by
+  # the engine, tailed read-only by the API to capture each call's SIP trace.
+  switchboard-pjsip-log:

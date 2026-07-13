@@ -12,11 +12,13 @@ import { createDb } from './db';
 import { migrate } from './db/migrate';
 import { buildApp } from './app';
 import { EventBus } from './events/bus';
-import { createAri, realConnector } from './ari';
+import { createAri, realConnector, type CallDirectory } from './ari';
+import { tailFile } from './ari/pjsip-log-source';
 import { createRealtimeProvisioner } from './modules/trunks/realtime-provisioner';
 import { applyEnvTrunks } from './modules/trunks/env-provisioning';
 import { CallRepo } from './modules/calls/calls.repo';
 import { CallWriter } from './modules/calls/call-writer';
+import { SipTraceCapture } from './modules/calls/sip-trace-capture';
 import type { Logger } from './logger';
 
 async function main(): Promise<void> {
@@ -56,6 +58,24 @@ async function main(): Promise<void> {
   // Persist every call from the event bus (feature 21).
   new CallWriter(new CallRepo(db), logger).subscribe(bus);
 
+  // Capture each call's SIP trace (feature 23): a bus subscriber buffers the
+  // engine's PJSIP log per in-flight call and records the parsed ladder when the
+  // call ends. The log tail only runs when a trace file is configured.
+  const traceCapture = new SipTraceCapture(services.traceStore);
+  traceCapture.subscribe(bus);
+  const stopTrace =
+    config.pjsipTraceFile === undefined
+      ? undefined
+      : tailFile(config.pjsipTraceFile, (text) => traceCapture.feed(text));
+
+  // What the call coordinator reads to plan each call (features 16/17, 24).
+  const directory: CallDirectory = {
+    trunks: () => services.trunks.list(),
+    numbers: () => services.numbers.list(),
+    routes: () => services.routes.list(),
+    recordAll: async () => (await services.settings.get()).record_all_calls,
+  };
+
   // Seed the record-all setting from the environment when it is explicitly set
   // (feature 25); the environment wins on boot, otherwise the stored value stays.
   await services.settings.seedRecordAll(
@@ -77,10 +97,12 @@ async function main(): Promise<void> {
     appName: config.ari.app,
     bus,
     logger,
+    directory,
   });
   void ari.start();
 
   const close = async (): Promise<void> => {
+    stopTrace?.();
     ari.stop();
     await app.close();
     await db.destroy();
