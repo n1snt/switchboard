@@ -15,12 +15,13 @@ describe('ARI event schemas', () => {
       args: ['dialed', 'bridge-1'],
       channel: {
         id: 'c1',
-        dialplan: { exten: '1002' },
+        dialplan: { exten: '1002', context: 'switchboard-trunk' },
         caller: { number: '1001' },
       },
     });
     expect(parsed.args).toEqual(['dialed', 'bridge-1']);
     expect(parsed.channel.dialplan?.exten).toBe('1002');
+    expect(parsed.channel.dialplan?.context).toBe('switchboard-trunk');
   });
 
   it('defaults StasisStart args to an empty array', () => {

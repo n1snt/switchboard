@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, it } from 'vitest';
-import { parseSipTrace } from './sip-trace-parser';
+import { parseSipMessages, parseSipTrace } from './sip-trace-parser';
 
 const SAMPLE = `
 <--- Received SIP request --->
@@ -46,5 +46,30 @@ describe('parseSipTrace', () => {
 
   it('returns nothing for text with no markers', () => {
     expect(parseSipTrace('just some log noise')).toEqual([]);
+  });
+});
+
+describe('parseSipMessages (per-dialog Call-ID)', () => {
+  it('extracts the Call-ID header from each message', () => {
+    const messages = parseSipMessages(
+      '<--- Received SIP request --->\nINVITE sip:x SIP/2.0\nCall-ID: abc@host\n',
+    );
+    expect(messages).toHaveLength(1);
+    expect(messages[0]?.callId).toBe('abc@host');
+    expect(messages[0]?.entry.method).toBe('INVITE');
+  });
+
+  it('accepts the compact `i:` Call-ID header form', () => {
+    const messages = parseSipMessages(
+      '<--- Transmitting SIP response --->\nSIP/2.0 200 OK\ni: zzz@host\n',
+    );
+    expect(messages[0]?.callId).toBe('zzz@host');
+  });
+
+  it('leaves the Call-ID undefined when the header is absent', () => {
+    const messages = parseSipMessages(
+      '<--- Received SIP request --->\nBYE sip:x SIP/2.0\n',
+    );
+    expect(messages[0]?.callId).toBeUndefined();
   });
 });

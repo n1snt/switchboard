@@ -10,6 +10,7 @@ function fakeClient() {
     answer: vi.fn().mockResolvedValue(undefined),
     hangup: vi.fn().mockResolvedValue(undefined),
     originate: vi.fn().mockResolvedValue({ id: 'callee-1' }),
+    getChannelVar: vi.fn().mockResolvedValue({ value: 'ulaw' }),
   };
   const bridges = {
     create: vi.fn().mockResolvedValue({ id: 'bridge-1' }),
@@ -92,5 +93,23 @@ describe('createAriOperations', () => {
 
     await ops.stopRecording('call-1');
     expect(recordings.stop).toHaveBeenCalledWith({ recordingName: 'call-1' });
+  });
+
+  it('reads a channel variable and returns undefined on failure', async () => {
+    const { client, channels } = fakeClient();
+    const ops = createAriOperations(client);
+
+    expect(await ops.getChannelVar('c1', 'CHANNEL(audionativeformat)')).toBe(
+      'ulaw',
+    );
+    expect(channels.getChannelVar).toHaveBeenCalledWith({
+      channelId: 'c1',
+      variable: 'CHANNEL(audionativeformat)',
+    });
+
+    channels.getChannelVar.mockRejectedValueOnce(new Error('unset'));
+    expect(
+      await ops.getChannelVar('c1', 'CHANNEL(pjsip,call-id)'),
+    ).toBeUndefined();
   });
 });

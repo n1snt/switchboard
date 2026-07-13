@@ -14,6 +14,7 @@ const AriCaller = z.object({
 
 const AriDialplan = z.object({
   exten: z.string().optional(),
+  context: z.string().optional(),
 });
 
 export const AriChannelSchema = z.object({

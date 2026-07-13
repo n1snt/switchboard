@@ -30,6 +30,11 @@ export interface AriOperations {
   startBridgeRecording(bridgeId: string, name: string): Promise<void>;
   /** Stop a recording started with {@link startBridgeRecording}. */
   stopRecording(name: string): Promise<void>;
+  /** Read a channel variable, or undefined if it is unset or the read fails. */
+  getChannelVar(
+    channelId: string,
+    variable: string,
+  ): Promise<string | undefined>;
 }
 
 /** Adapt a connected `ari-client` instance to the {@link AriOperations} surface. */
@@ -65,6 +70,19 @@ export function createAriOperations(client: Client): AriOperations {
     },
     async stopRecording(name) {
       await client.recordings.stop({ recordingName: name });
+    },
+    async getChannelVar(channelId, variable) {
+      // ARI returns 404 for an unset variable; treat any failure as "unknown"
+      // so an optional read (codec, SIP Call-ID) never breaks a call.
+      try {
+        const result = await client.channels.getChannelVar({
+          channelId,
+          variable,
+        });
+        return result.value;
+      } catch {
+        return undefined;
+      }
     },
   };
 }

@@ -6,6 +6,7 @@ import {
   contract,
   ErrorSchema,
   HealthSchema,
+  type Call,
   type Health,
 } from '@switchboard/shared';
 
@@ -41,6 +42,25 @@ export function apiErrorMessage(body: unknown): string {
  */
 export function recordingUrl(callId: string): string {
   return `/api/v1/calls/${callId}/recording`;
+}
+
+/**
+ * Start or stop recording the given live call. Backs the in-call Record
+ * toggle, so a 404/409 (call not live on the engine) surfaces as a thrown
+ * error for the caller to log or ignore.
+ */
+export async function setCallRecording(
+  id: string,
+  enabled: boolean,
+): Promise<Call> {
+  const res = await apiClient.calls.setRecording({
+    params: { id },
+    body: { enabled },
+  });
+  if (res.status === 200) {
+    return res.body;
+  }
+  throw new Error(apiErrorMessage(res.body));
 }
 
 /** Query key for the engine/health poll used by the header indicator. */

@@ -26,6 +26,7 @@ import {
   type TrunkProvisioner,
 } from './modules/trunks/provisioner';
 import { CallRepo } from './modules/calls/calls.repo';
+import type { RecordingControl } from './modules/calls/recording-control';
 import { registerRecordingRoutes } from './modules/recording/recording';
 
 export interface AppOptions {
@@ -42,6 +43,8 @@ export interface AppOptions {
    * testable without an engine.
    */
   getEngineStatus?: () => EngineStatus;
+  /** Controls recording on live calls (feature 24); defaults to a no-op. */
+  recordingControl?: RecordingControl;
   logger?: FastifyServerOptions['logger'];
 }
 
@@ -60,6 +63,7 @@ export async function buildApp(
     bus,
     provisioner = noopProvisioner,
     getEngineStatus = (): EngineStatus => 'disconnected',
+    recordingControl,
     logger = false,
   } = options;
 
@@ -79,7 +83,12 @@ export async function buildApp(
     return HealthSchema.parse(body);
   });
 
-  const services = buildServices({ db, bus, provisioner });
+  const services = buildServices({
+    db,
+    bus,
+    provisioner,
+    ...(recordingControl ? { recordingControl } : {}),
+  });
   await registerApiRoutes(app, services);
   registerRecordingRoutes(app, new CallRepo(db), config.recordingsDir);
 

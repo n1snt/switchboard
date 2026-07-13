@@ -23,6 +23,7 @@ function input(overrides: Partial<CallPlanInput> = {}): CallPlanInput {
     callId: 'call-1',
     dialed: '1002',
     from: '1001',
+    trunkCall: false,
     callerTrunk: undefined,
     numbers: [],
     trunks: [],
@@ -76,7 +77,12 @@ describe('planCall — softphone caller (inbound, feature 17)', () => {
 describe('planCall — trunk caller (outbound, feature 16)', () => {
   it('rings the softphone by default when no route matches', () => {
     const plan = planCall(
-      input({ callerTrunk: trunk, dialed: '+14155550123', from: 'sut' }),
+      input({
+        trunkCall: true,
+        callerTrunk: trunk,
+        dialed: '+14155550123',
+        from: 'sut',
+      }),
     );
     expect(plan).toMatchObject({
       direction: 'outbound',
@@ -87,10 +93,24 @@ describe('planCall — trunk caller (outbound, feature 16)', () => {
     });
   });
 
+  it('treats an anonymous (none-auth) trunk call as outbound with no trunk id', () => {
+    const plan = planCall(
+      input({ trunkCall: true, callerTrunk: undefined, dialed: '5551234' }),
+    );
+    expect(plan.direction).toBe('outbound');
+    expect(plan.trunkId).toBeNull();
+    expect(plan.calleeEndpoint).toBe(`PJSIP/${SOFTPHONE_ENDPOINT}`);
+  });
+
   it('honors an explicit outbound route destination', () => {
     const route: Route = { ...ROUTE_EXAMPLE, match: '*', destination: '1002' };
     const plan = planCall(
-      input({ callerTrunk: trunk, dialed: '5551234', routes: [route] }),
+      input({
+        trunkCall: true,
+        callerTrunk: trunk,
+        dialed: '5551234',
+        routes: [route],
+      }),
     );
     expect(plan.calleeEndpoint).toBe('PJSIP/1002');
   });
@@ -102,7 +122,12 @@ describe('planCall — trunk caller (outbound, feature 16)', () => {
       destination: 'softphone',
     };
     const plan = planCall(
-      input({ callerTrunk: trunk, dialed: '5551234', routes: [route] }),
+      input({
+        trunkCall: true,
+        callerTrunk: trunk,
+        dialed: '5551234',
+        routes: [route],
+      }),
     );
     expect(plan.calleeEndpoint).toBe(`PJSIP/${SOFTPHONE_ENDPOINT}`);
   });
@@ -115,5 +140,27 @@ describe('planCall — recording decision', () => {
 
   it('records nothing when record-all is off', () => {
     expect(planCall(input({ recordAll: false })).recording).toBeNull();
+  });
+
+  it('records an outbound call when the caller trunk defaults to recording', () => {
+    const plan = planCall(
+      input({
+        trunkCall: true,
+        callerTrunk: { ...trunk, record: true },
+        dialed: '5551234',
+      }),
+    );
+    expect(plan.recording).toBe('call-1.wav');
+  });
+
+  it('records an inbound call when the dialed trunk defaults to recording', () => {
+    const plan = planCall(
+      input({
+        dialed: number.e164,
+        numbers: [number],
+        trunks: [{ ...trunk, record: true }],
+      }),
+    );
+    expect(plan.recording).toBe('call-1.wav');
   });
 });

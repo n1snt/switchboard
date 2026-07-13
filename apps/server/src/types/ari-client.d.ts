@@ -22,6 +22,10 @@ declare module 'ari-client' {
       appArgs?: string;
       callerId?: string;
     }): Promise<Channel>;
+    getChannelVar(params: {
+      channelId: string;
+      variable: string;
+    }): Promise<{ value: string }>;
   }
 
   export interface Bridges {

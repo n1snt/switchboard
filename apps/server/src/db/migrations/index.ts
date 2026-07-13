@@ -6,6 +6,7 @@ import type { Database } from '../schema';
 import { up as init } from './0001_init';
 import { up as pjsipRealtime } from './0002_pjsip_realtime';
 import { up as pjsipIdentify } from './0003_pjsip_identify';
+import { up as trunkRecord } from './0004_trunk_record';
 
 /** A single ordered, forward-only migration. */
 export interface Migration {
@@ -21,4 +22,5 @@ export const migrations: Migration[] = [
   { name: '0001_init', up: init },
   { name: '0002_pjsip_realtime', up: pjsipRealtime },
   { name: '0003_pjsip_identify', up: pjsipIdentify },
+  { name: '0004_trunk_record', up: trunkRecord },
 ];

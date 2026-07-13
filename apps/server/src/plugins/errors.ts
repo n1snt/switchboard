@@ -26,6 +26,8 @@ export const notFound = (message: string): HttpError =>
   new HttpError(404, 'not_found', message);
 export const badRequest = (message: string): HttpError =>
   new HttpError(400, 'bad_request', message);
+export const conflict = (message: string): HttpError =>
+  new HttpError(409, 'conflict', message);
 
 interface StatusCarrier {
   statusCode: number;

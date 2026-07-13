@@ -12,7 +12,12 @@ import type {
 } from '@switchboard/shared';
 import type { EventBus } from '../events/bus';
 import type { Logger } from '../logger';
-import { endpointFromChannelName, planCall } from '../modules/calls/call-plan';
+import {
+  endpointFromChannelName,
+  planCall,
+  TRUNK_CONTEXT,
+} from '../modules/calls/call-plan';
+import type { SipTraceRegistrar } from '../modules/calls/sip-trace-capture';
 import type { AriOperations } from './operations';
 import {
   ChannelHangupRequestEventSchema,
@@ -31,9 +36,10 @@ import {
 // a bare extension is the browser-to-browser walking skeleton (feature 9).
 //
 // Dialplan contract: a caller channel enters Stasis(<app>) with no extra
-// arguments and its dialed target in `channel.dialplan.exten`; the caller's
-// PJSIP endpoint (`channel.name`) identifies the trunk it arrived on, if any.
-// The originated callee leg re-enters Stasis with args ['dialed', <bridgeId>].
+// arguments, its dialed target in `channel.dialplan.exten`, and its context in
+// `channel.dialplan.context` (the trunk context marks a system-under-test call
+// even when the trunk cannot be identified, e.g. anonymous none-auth). The
+// originated callee leg re-enters Stasis with args ['dialed', <bridgeId>].
 
 interface CallSession {
   callId: string;
@@ -46,8 +52,12 @@ interface CallSession {
   trunkId: string | null;
   /** The recording filename when this call should be recorded, else null. */
   recording: string | null;
-  /** Whether bridge recording has actually started (set once both legs bridge). */
+  /** Whether bridge recording has actually started. */
   recordingStarted: boolean;
+  /** The negotiated audio codec once known, else null. */
+  codec: string | null;
+  /** The last published lifecycle state, for mid-call updates. */
+  state: CallState;
   startedAt: string;
   answeredAt?: string;
 }
@@ -66,6 +76,8 @@ export interface CoordinatorDeps {
   appName: string;
   logger: Logger;
   directory: CallDirectory;
+  /** Told each call's SIP Call-IDs so the trace can be attributed per dialog. */
+  traceRegistrar?: SipTraceRegistrar;
   /** Injectable clock and id generator for deterministic tests. */
   now?: () => string;
   idGen?: () => string;
@@ -86,16 +98,24 @@ function causeText(cause?: number): string {
   }
 }
 
-export class CallCoordinator {
+/** Reduce Asterisk's `CHANNEL(audionativeformat)` value (e.g. `(ulaw)`) to a name. */
+function normalizeCodec(raw: string): string | null {
+  const cleaned = raw.replace(/[()]/g, '').trim();
+  return cleaned === '' ? null : cleaned;
+}
+
+export class CallCoordinator implements SipTraceRegistrar {
   private readonly ops: AriOperations;
   private readonly bus: EventBus;
   private readonly appName: string;
   private readonly logger: Logger;
   private readonly directory: CallDirectory;
+  private readonly traceRegistrar: SipTraceRegistrar | undefined;
   private readonly now: () => string;
   private readonly idGen: () => string;
   private readonly byChannel = new Map<string, CallSession>();
   private readonly byBridge = new Map<string, CallSession>();
+  private readonly byCall = new Map<string, CallSession>();
 
   constructor(deps: CoordinatorDeps) {
     this.ops = deps.ops;
@@ -103,8 +123,14 @@ export class CallCoordinator {
     this.appName = deps.appName;
     this.logger = deps.logger;
     this.directory = deps.directory;
+    this.traceRegistrar = deps.traceRegistrar;
     this.now = deps.now ?? ((): string => new Date().toISOString());
     this.idGen = deps.idGen ?? ((): string => nanoid());
+  }
+
+  /** Implements SipTraceRegistrar; forwards to the wired trace capture, if any. */
+  registerCallId(callId: string, sipCallId: string): void {
+    this.traceRegistrar?.registerCallId(callId, sipCallId);
   }
 
   /** Sync, self-contained handlers for the connection manager to register. */
@@ -170,12 +196,16 @@ export class CallCoordinator {
       endpoint === undefined
         ? undefined
         : trunks.find((trunk) => trunk.id === endpoint);
+    const trunkCall =
+      event.channel.dialplan?.context === TRUNK_CONTEXT ||
+      callerTrunk !== undefined;
 
     const callId = this.idGen();
     const plan = planCall({
       callId,
       dialed,
       from: event.channel.caller?.number ?? channelId,
+      trunkCall,
       callerTrunk,
       numbers,
       trunks,
@@ -193,13 +223,17 @@ export class CallCoordinator {
       trunkId: plan.trunkId,
       recording: plan.recording,
       recordingStarted: false,
+      codec: null,
+      state: 'created',
       startedAt: this.now(),
     };
     await this.ops.answer(channelId);
+    await this.captureLegMetadata(channelId, session, false);
     session.bridgeId = await this.ops.createBridge();
     await this.ops.addToBridge(session.bridgeId, channelId);
     this.byChannel.set(channelId, session);
     this.byBridge.set(session.bridgeId, session);
+    this.byCall.set(callId, session);
     this.publish('call.created', session, 'created');
     this.publish('call.ringing', session, 'ringing');
 
@@ -213,7 +247,7 @@ export class CallCoordinator {
     this.byChannel.set(calleeId, session);
   }
 
-  /** Callee leg re-enters: answer, bridge, start recording, and mark answered. */
+  /** Callee leg re-enters: answer, bridge, capture media, start recording. */
   private async onCalleeEntered(
     channelId: string,
     bridgeId: string | undefined,
@@ -232,6 +266,7 @@ export class CallCoordinator {
     this.byChannel.set(channelId, session);
     await this.ops.answer(channelId);
     await this.ops.addToBridge(session.bridgeId, channelId);
+    await this.captureLegMetadata(channelId, session, true);
     if (session.recording !== null) {
       await this.ops.startBridgeRecording(session.bridgeId, session.callId);
       session.recordingStarted = true;
@@ -269,11 +304,68 @@ export class CallCoordinator {
       this.byChannel.delete(session.calleeChannelId);
     }
     this.byBridge.delete(session.bridgeId);
+    this.byCall.delete(session.callId);
 
     this.publish('call.ended', session, 'ended', {
       ended_at: this.now(),
       hangup_cause: cause,
     });
+  }
+
+  /**
+   * Start or stop recording a live call (feature 24, the in-call Record toggle).
+   * Returns the updated call snapshot, or null when the call is not currently live.
+   */
+  async setRecording(callId: string, enabled: boolean): Promise<Call | null> {
+    const session = this.byCall.get(callId);
+    if (session === undefined) {
+      return null;
+    }
+    if (enabled && !session.recordingStarted) {
+      if (session.recording === null) {
+        session.recording = `${session.callId}.wav`;
+      }
+      await this.ops.startBridgeRecording(session.bridgeId, session.callId);
+      session.recordingStarted = true;
+    } else if (!enabled && session.recordingStarted) {
+      await this.safe(
+        () => this.ops.stopRecording(session.callId),
+        'stop recording',
+      );
+      session.recordingStarted = false;
+    }
+    const call = this.buildCall(session, session.state);
+    this.bus.publish({
+      type: 'call.state_changed',
+      at: this.now(),
+      call,
+      state: session.state,
+    });
+    return call;
+  }
+
+  /** Read a leg's SIP Call-ID (for trace attribution) and, optionally, its codec. */
+  private async captureLegMetadata(
+    channelId: string,
+    session: CallSession,
+    readCodec: boolean,
+  ): Promise<void> {
+    const sipCallId = await this.ops.getChannelVar(
+      channelId,
+      'CHANNEL(pjsip,call-id)',
+    );
+    if (sipCallId !== undefined) {
+      this.registerCallId(session.callId, sipCallId);
+    }
+    if (readCodec) {
+      const format = await this.ops.getChannelVar(
+        channelId,
+        'CHANNEL(audionativeformat)',
+      );
+      if (format !== undefined) {
+        session.codec = normalizeCodec(format);
+      }
+    }
   }
 
   private run(work: () => Promise<void>): void {
@@ -290,13 +382,12 @@ export class CallCoordinator {
     }
   }
 
-  private publish(
-    type: 'call.created' | 'call.ringing' | 'call.answered' | 'call.ended',
+  private buildCall(
     session: CallSession,
     state: CallState,
     extra?: { ended_at?: string; hangup_cause?: string },
-  ): void {
-    const call: Call = {
+  ): Call {
+    return {
       id: session.callId,
       direction: session.direction,
       from_number: session.from,
@@ -307,9 +398,22 @@ export class CallCoordinator {
       answered_at: session.answeredAt ?? null,
       ended_at: extra?.ended_at ?? null,
       hangup_cause: extra?.hangup_cause ?? null,
-      codec: null,
+      codec: session.codec,
       recording: session.recordingStarted ? session.recording : null,
     };
-    this.bus.publish({ type, at: this.now(), call });
+  }
+
+  private publish(
+    type: 'call.created' | 'call.ringing' | 'call.answered' | 'call.ended',
+    session: CallSession,
+    state: CallState,
+    extra?: { ended_at?: string; hangup_cause?: string },
+  ): void {
+    session.state = state;
+    this.bus.publish({
+      type,
+      at: this.now(),
+      call: this.buildCall(session, state, extra),
+    });
   }
 }

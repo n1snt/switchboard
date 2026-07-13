@@ -22,6 +22,7 @@ import {
 import {
   CallDetailSchema,
   CallListQuerySchema,
+  CallRecordingUpdateSchema,
   CallSchema,
 } from './schemas/call';
 import {
@@ -189,6 +190,16 @@ export const callsContract = c.router({
       'The full call timeline, negotiated media, hangup cause, and SIP ladder.',
     pathParams: IdParams,
     responses: { 200: CallDetailSchema, 404: ErrorSchema },
+  },
+  setRecording: {
+    method: 'PUT',
+    path: '/api/v1/calls/:id/recording',
+    summary: 'Start or stop recording an in-progress call',
+    description:
+      'Toggles recording on a live call (the in-call Record control). 409 if the call is not currently live on the engine.',
+    pathParams: IdParams,
+    body: CallRecordingUpdateSchema,
+    responses: { 200: CallSchema, 404: ErrorSchema, 409: ErrorSchema },
   },
 });
 

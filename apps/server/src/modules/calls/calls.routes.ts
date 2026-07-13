@@ -21,6 +21,10 @@ export async function registerCallRoutes(
       status: 200,
       body: await service.get(params.id),
     }),
+    setRecording: async ({ params, body }) => ({
+      status: 200,
+      body: await service.setRecording(params.id, body.enabled),
+    }),
   });
   await app.register(s.plugin(router), options);
 }

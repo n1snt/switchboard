@@ -142,6 +142,10 @@ export const TrunkBaseSchema = z.object({
     .describe('Ordered allow-list of audio codecs; order is preference.'),
   dtmf_mode: DtmfModeSchema.default('rfc2833'),
   media_encryption: MediaEncryptionSchema.default('none'),
+  record: z
+    .boolean()
+    .default(false)
+    .describe('Record calls on this trunk by default.'),
   max_cps: z
     .number()
     .int()
@@ -237,6 +241,7 @@ export const TRUNK_EXAMPLE: Trunk = {
   codecs: ['ulaw', 'alaw'],
   dtmf_mode: 'rfc2833',
   media_encryption: 'none',
+  record: false,
   max_cps: null,
   max_channels: null,
   source: 'ui',

@@ -15,6 +15,7 @@ import { ThemeProvider } from '@/lib/theme';
 import { resolveSoftphoneConfig } from '@/features/softphone/config';
 import { attachSoftphoneSession } from '@/features/softphone/session';
 import { SipjsAdapter } from '@/features/softphone/sipjsAdapter';
+import { setCallRecording } from '@/lib/api';
 import { useSoftphoneStore } from '@/stores/softphone';
 import '@/styles/index.css';
 
@@ -30,6 +31,11 @@ function connectSoftphone(): void {
   document.body.appendChild(remoteAudio);
   const adapter = new SipjsAdapter({ ...config, remoteAudio });
   attachSoftphoneSession(adapter, useSoftphoneStore.getState());
+  useSoftphoneStore.getState().attachRecordingControl((id, enabled) => {
+    void setCallRecording(id, enabled).catch((error: unknown) => {
+      console.error('Failed to update call recording', error);
+    });
+  });
 }
 
 const router = createRouter({ routeTree });

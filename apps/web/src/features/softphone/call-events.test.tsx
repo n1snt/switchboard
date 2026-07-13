@@ -94,6 +94,42 @@ describe('applyCallEvent', () => {
     );
     expect(useSoftphoneStore.getState().incoming).toEqual([]);
   });
+
+  it('links the server call id onto a placed (inbound) active call', () => {
+    useSoftphoneStore.getState().placeCall('agent-dev');
+    applyCallEvent(
+      event('call.created', placedCall),
+      useSoftphoneStore.getState(),
+    );
+    expect(useSoftphoneStore.getState().activeCall?.id).toBe('call_out');
+  });
+
+  it('does not link the call id onto an incoming (outbound) active call', () => {
+    useSoftphoneStore.getState().placeCall('agent-dev');
+    applyCallEvent(
+      event('call.ringing', incomingCall),
+      useSoftphoneStore.getState(),
+    );
+    expect(useSoftphoneStore.getState().activeCall?.id).toBeUndefined();
+  });
+
+  it('links the call id on a placed call that answers directly', () => {
+    useSoftphoneStore.getState().placeCall('agent-dev');
+    applyCallEvent(
+      event('call.answered', placedCall),
+      useSoftphoneStore.getState(),
+    );
+    expect(useSoftphoneStore.getState().activeCall?.id).toBe('call_out');
+  });
+
+  it('does not link the call id for other placed-call event types', () => {
+    useSoftphoneStore.getState().placeCall('agent-dev');
+    applyCallEvent(
+      event('call.ended', placedCall),
+      useSoftphoneStore.getState(),
+    );
+    expect(useSoftphoneStore.getState().activeCall?.id).toBeUndefined();
+  });
 });
 
 describe('useCallEventBridge', () => {

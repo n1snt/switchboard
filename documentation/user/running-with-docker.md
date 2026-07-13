@@ -141,6 +141,17 @@ If you are still stuck, the dashboard's live call log and SIP trace (once
 those features land) show exactly what codec was negotiated and what each
 leg reported, which narrows this down far faster than guessing.
 
+## Reaching Switchboard from another machine
+
+The setup above runs Switchboard on localhost and works perfectly for
+development on a single machine. To reach Switchboard from another device on
+your network or the internet, you need Transport Layer Security (TLS) for both
+the browser softphone and any SIP trunks. This requires mounting a certificate
+and key and uncommenting TLS settings in the engine configuration. See the
+developer guide's [TLS enable-path section](../dev/containers.md#enabling-tls-wss--and-tls-trunks-beyond-localhost)
+for the full steps; this scaffolding is unverified and intended only for moving
+past the localhost sandbox.
+
 ## Explore the API
 
 The control plane is self-documenting. From the dashboard's origin (so no

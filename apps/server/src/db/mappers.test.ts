@@ -65,6 +65,7 @@ describe('database round-trip', () => {
         codecs: toJsonColumn(['ulaw', 'alaw']),
         dtmf_mode: 'rfc2833',
         media_encryption: 'none',
+        record: toDbBool(false),
         source: 'ui',
         created_at: '2026-07-13T10:02:00.000Z',
       })

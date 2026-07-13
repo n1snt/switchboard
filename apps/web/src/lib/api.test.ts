@@ -1,7 +1,7 @@
 // Copyright 2026 Nishant Bhandari
 // SPDX-License-Identifier: Apache-2.0
 
-import { TRUNK_EXAMPLE, type Health } from '@switchboard/shared';
+import { CALL_EXAMPLE, TRUNK_EXAMPLE, type Health } from '@switchboard/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   apiClient,
@@ -9,6 +9,7 @@ import {
   fetchHealth,
   healthQueryKey,
   recordingUrl,
+  setCallRecording,
 } from './api';
 
 const validHealth: Health = {
@@ -83,6 +84,43 @@ describe('apiErrorMessage', () => {
 describe('recordingUrl', () => {
   it('builds the relative binary download URL for a call', () => {
     expect(recordingUrl('call_1')).toBe('/api/v1/calls/call_1/recording');
+  });
+});
+
+describe('setCallRecording', () => {
+  it('returns the updated call on success', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ...CALL_EXAMPLE, recording: 'rec_1' }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await setCallRecording('call_1', true);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/calls/call_1/recording',
+      expect.objectContaining({
+        method: 'PUT',
+        body: JSON.stringify({ enabled: true }),
+      }),
+    );
+    expect(result).toEqual({ ...CALL_EXAMPLE, recording: 'rec_1' });
+  });
+
+  it('throws with the server message when the call is not live', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ error: { code: 'conflict', message: 'Not live' } }),
+          { status: 409, headers: { 'content-type': 'application/json' } },
+        ),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(setCallRecording('call_1', false)).rejects.toThrow('Not live');
   });
 });
 

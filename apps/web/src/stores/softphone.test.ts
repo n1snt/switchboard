@@ -63,6 +63,7 @@ describe('createInitialState', () => {
       incoming: [],
       recents: [],
       adapter: nullSipAdapter,
+      recordingControl: expect.any(Function),
     });
   });
 });
@@ -136,6 +137,7 @@ describe('softphone store with the default null adapter', () => {
     expect(store().activeCall).toEqual({
       peer: '+14155550123',
       direction: 'received',
+      id: 'in-1',
     });
     expect(store().incoming).toEqual([]);
   });
@@ -254,5 +256,52 @@ describe('softphone extended call controls', () => {
     expect(store().codec).toBe('opus');
     store().setCodec(null);
     expect(store().codec).toBeNull();
+  });
+
+  it('does not push a recording change when the active call has no server id', () => {
+    const recordingControl = vi.fn();
+    store().attachRecordingControl(recordingControl);
+    store().placeCall('agent-dev');
+
+    store().toggleRecording();
+    expect(store().recording).toBe(true);
+    expect(recordingControl).not.toHaveBeenCalled();
+  });
+
+  it('defaults recordingControl to a no-op before a control is attached', () => {
+    store().placeCall('agent-dev');
+    store().linkActiveCall('call_1');
+    expect(() => {
+      store().toggleRecording();
+    }).not.toThrow();
+  });
+
+  it('pushes a recording change to the server once the active call is linked', () => {
+    const recordingControl = vi.fn();
+    store().attachRecordingControl(recordingControl);
+    store().placeCall('agent-dev');
+    store().linkActiveCall('call_1');
+
+    store().toggleRecording();
+    expect(store().recording).toBe(true);
+    expect(recordingControl).toHaveBeenCalledWith('call_1', true);
+
+    store().toggleRecording();
+    expect(store().recording).toBe(false);
+    expect(recordingControl).toHaveBeenCalledWith('call_1', false);
+  });
+
+  it('links the server call id onto the active call only once', () => {
+    store().placeCall('agent-dev');
+    store().linkActiveCall('call_1');
+    expect(store().activeCall?.id).toBe('call_1');
+
+    store().linkActiveCall('call_2');
+    expect(store().activeCall?.id).toBe('call_1');
+  });
+
+  it('does nothing when linking a call id with no active call', () => {
+    store().linkActiveCall('call_1');
+    expect(store().activeCall).toBeNull();
   });
 });

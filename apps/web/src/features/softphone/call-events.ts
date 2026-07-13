@@ -11,10 +11,25 @@ import { useSoftphoneStore, type SoftphoneStore } from '@/stores/softphone';
 // direction, which the dashboard shows as an incoming call: those raise the
 // notification card. The answered event carries the negotiated codec, and an
 // ended event clears a still-ringing incoming card (the caller cancelled).
+//
+// A call the softphone placed is data-model `inbound`. The store's activeCall
+// has no server id yet at that point (it's only set locally by placeCall), so
+// early lifecycle events correlate the server's call.id onto it, letting a
+// per-call action like recording target the right call.
 
 /** Apply a single call event to the store. Pure over the passed store slice. */
 export function applyCallEvent(event: CallEvent, store: SoftphoneStore): void {
   const { call } = event;
+
+  if (call.direction === 'inbound') {
+    if (
+      event.type === 'call.created' ||
+      event.type === 'call.ringing' ||
+      event.type === 'call.answered'
+    ) {
+      store.linkActiveCall(call.id);
+    }
+  }
 
   if (event.type === 'call.answered') {
     store.setCodec(call.codec);

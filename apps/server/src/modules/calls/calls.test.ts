@@ -122,4 +122,46 @@ describe('calls HTTP', () => {
     expect(again?.state).toBe('answered');
     expect(await list()).toHaveLength(2);
   });
+
+  it('409s a recording toggle for a call that is not live', async () => {
+    const res = await harness.app.inject({
+      method: 'PUT',
+      url: '/api/v1/calls/c-out/recording',
+      payload: { enabled: false },
+    });
+    expect(res.statusCode).toBe(409);
+  });
+
+  it('404s a recording toggle for an unknown call', async () => {
+    const res = await harness.app.inject({
+      method: 'PUT',
+      url: '/api/v1/calls/nope/recording',
+      payload: { enabled: true },
+    });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe('calls recording control with a live call', () => {
+  it('200s and returns the updated call', async () => {
+    const recorded: Call = {
+      ...CALL_EXAMPLE,
+      id: 'live-1',
+      recording: 'live-1.wav',
+    };
+    const app = await createTestApp({
+      recordingControl: { setRecording: () => Promise.resolve(recorded) },
+    });
+    try {
+      const res = await app.app.inject({
+        method: 'PUT',
+        url: '/api/v1/calls/live-1/recording',
+        payload: { enabled: true },
+      });
+      expect(res.statusCode).toBe(200);
+      expect(res.json<Call>().recording).toBe('live-1.wav');
+    } finally {
+      await app.close();
+    }
+  });
 });

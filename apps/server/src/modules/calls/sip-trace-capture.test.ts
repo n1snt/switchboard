@@ -78,4 +78,28 @@ describe('SipTraceCapture', () => {
     unsubscribe();
     expect(bus.listenerCount()).toBe(0);
   });
+
+  it('attributes only the registered dialogs when Call-IDs are known', async () => {
+    const store = new InMemorySipTraceStore();
+    const bus = new EventBus();
+    const capture = new SipTraceCapture(
+      store,
+      () => '2026-07-13T10:00:00.000Z',
+    );
+    capture.subscribe(bus);
+
+    bus.publish(event('call.created', 'c1'));
+    capture.registerCallId('c1', 'mine@host');
+    capture.feed(
+      '<--- Received SIP request --->\nINVITE sip:x SIP/2.0\nCall-ID: mine@host\n',
+    );
+    capture.feed(
+      '<--- Received SIP request --->\nINVITE sip:y SIP/2.0\nCall-ID: other@host\n',
+    );
+    bus.publish(event('call.ended', 'c1'));
+
+    const trace = await store.get('c1');
+    expect(trace).toHaveLength(1);
+    expect(trace[0]?.summary).toBe('INVITE sip:x SIP/2.0');
+  });
 });

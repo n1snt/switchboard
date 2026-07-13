@@ -53,6 +53,7 @@ endpoint and credentials."
 | `codecs`           | json      | Ordered allow-list of audio codecs; order is preference.            |
 | `dtmf_mode`        | text      | `rfc2833`, `info`, or `inband`.                                     |
 | `media_encryption` | text      | `none` or `srtp`.                                                   |
+| `record`           | boolean   | When true, calls on this trunk are recorded by default.             |
 | `max_cps`          | integer   | Optional calls-per-second cap. Null means no limit.                 |
 | `max_channels`     | integer   | Optional concurrent-call cap. Null means no limit.                  |
 | `source`           | text      | `ui` or `env`. `env` trunks are seeded from the environment.        |

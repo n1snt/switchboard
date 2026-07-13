@@ -24,6 +24,9 @@ import { planOutgoing } from './dialing';
  */
 export const SOFTPHONE_ENDPOINT = '1001';
 
+/** The dialplan context a provisioned trunk's calls enter Stasis from. */
+export const TRUNK_CONTEXT = 'switchboard-trunk';
+
 export interface CallPlanInput {
   /** The call id, used to name a recording file. */
   callId: string;
@@ -32,8 +35,15 @@ export interface CallPlanInput {
   /** The presented caller identity. */
   from: string;
   /**
-   * The trunk the caller arrived on when the call came in on a provisioned trunk
-   * (feature 16); undefined when the browser softphone is the caller (feature 17).
+   * Whether the call arrived on a provisioned trunk (feature 16): true for a call
+   * from the system-under-test, false when the browser softphone is the caller
+   * (feature 17). Derived from the channel's dialplan context and endpoint.
+   */
+  trunkCall: boolean;
+  /**
+   * The identified trunk the call arrived on, when it could be matched (by
+   * endpoint). May be undefined for an anonymous `none`-auth trunk even though
+   * `trunkCall` is true.
    */
   callerTrunk: Trunk | undefined;
   numbers: PhoneNumber[];
@@ -69,25 +79,35 @@ export function endpointFromChannelName(
   return name.slice(slash + 1, dash);
 }
 
+function recordingName(
+  callId: string,
+  perTrunk: boolean | undefined,
+  recordAll: boolean,
+): string | null {
+  return resolveRecordEnabled(undefined, perTrunk, recordAll)
+    ? `${callId}.wav`
+    : null;
+}
+
 /** Plan a call from the caller's role, what they dialed, and current config. */
 export function planCall(input: CallPlanInput): CallPlan {
-  const recording = resolveRecordEnabled(undefined, undefined, input.recordAll)
-    ? `${input.callId}.wav`
-    : null;
-
-  if (input.callerTrunk !== undefined) {
+  if (input.trunkCall) {
     const route = matchRoute(input.routes, 'outbound', input.dialed);
     const destination = route?.destination ?? 'softphone';
     return {
       direction: 'outbound',
       from: input.from,
       to: input.dialed,
-      trunkId: input.callerTrunk.id,
+      trunkId: input.callerTrunk?.id ?? null,
       calleeEndpoint:
         destination === 'softphone'
           ? `PJSIP/${SOFTPHONE_ENDPOINT}`
           : `PJSIP/${destination}`,
-      recording,
+      recording: recordingName(
+        input.callId,
+        input.callerTrunk?.record,
+        input.recordAll,
+      ),
     };
   }
 
@@ -95,12 +115,20 @@ export function planCall(input: CallPlanInput): CallPlan {
     numbers: input.numbers,
     trunks: input.trunks,
   });
+  const dialedTrunk =
+    out.trunkId === null
+      ? undefined
+      : input.trunks.find((trunk) => trunk.id === out.trunkId);
   return {
     direction: 'inbound',
     from: input.from,
     to: out.toNumber,
     trunkId: out.trunkId,
     calleeEndpoint: out.endpoint,
-    recording,
+    recording: recordingName(
+      input.callId,
+      dialedTrunk?.record,
+      input.recordAll,
+    ),
   };
 }

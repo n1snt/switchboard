@@ -156,6 +156,74 @@ certificate and key into the engine container, uncomment the `tlsenable` /
 `pjsip.conf.template` (protocol `wss`, same `bind`), and point the softphone's
 SIP.js configuration at `wss://` instead of `ws://`.
 
+### Enabling TLS (wss:// and TLS trunks) beyond localhost
+
+Plain `ws://` and UDP/TCP trunks are suitable only for localhost development.
+To reach Switchboard over a real network, two things need TLS: the browser
+softphone's SIP signaling (wss:// instead of ws://) and any trunks configured
+with TLS transport for encrypted signaling. Both depend on a certificate and
+key, and both are scaffolded (unverified) below.
+
+To enable them:
+
+1. **Mount a certificate and key into the engine.** In `docker-compose.yml`,
+   add to the `switchboard-engine` service's `volumes:` block:
+
+   ```yaml
+   volumes:
+     - ./certs/tls-cert.pem:/etc/asterisk/keys/tls-cert.pem:ro
+     - ./certs/tls-key.pem:/etc/asterisk/keys/tls-key.pem:ro
+   ```
+
+   Replace `./certs/` with your certificate and key paths. Both files must be
+   readable by the Asterisk process inside the container.
+
+2. **Uncomment the TLS settings in `engine/config/http.conf`.** Uncomment the
+   four lines under the "To enable wss://" comment:
+
+   ```conf
+   tlsenable = yes
+   tlsbindaddr = 0.0.0.0:8089
+   tlscertfile = /etc/asterisk/keys/tls-cert.pem
+   tlsprivatekey = /etc/asterisk/keys/tls-key.pem
+   ```
+
+3. **Uncomment the `[transport-tls]` block in `engine/config/pjsip.conf.template`.**
+   This enables the TLS transport for trunks that need it. Trunks with
+   `transport = "tls"` (data-model.md's trunks.transport column) will then use
+   this transport for encrypted signaling.
+
+4. **Publish the TLS ports in `docker-compose.yml`.** Add these to the
+   `switchboard-engine` service's `ports:` block:
+
+   ```yaml
+   ports:
+     - "8088:8088/tcp"
+     - "8089:8089/tcp"  # wss://
+     - "5061:5061/tcp"  # SIP-TLS
+     - "10000-10099:10000-10099/udp"  # RTP
+   ```
+
+5. **Point the browser softphone at wss://.** Set the web app's environment
+   variable (in `docker-compose.yml` or `docker-compose.override.yml` for the
+   `switchboard-web` service, or baked into `apps/web` during build):
+
+   ```yaml
+   environment:
+     VITE_SIP_WS_URL: wss://host:8089/ws
+   ```
+
+   Replace `host` with the network-reachable hostname or IP of the machine
+   running Switchboard (e.g., `192.168.1.100` on your LAN, or a fully qualified
+   domain name if published on the internet).
+
+This scaffolding is **unverified** (no integration test drives the full path
+yet) and intended only for moving past the localhost sandbox. The certificate
+and key format, the Asterisk TLS configuration, and the browser softphone's
+SIP.js integration with wss:// are all subject to change as the feature is
+tested end-to-end. For localhost development, plain `ws://` and UDP/TCP are
+sufficient and require no certificate or configuration changes.
+
 ## `switchboard-api`
 
 `apps/server/Dockerfile` is a five-stage build:

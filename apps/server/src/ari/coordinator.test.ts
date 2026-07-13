@@ -19,6 +19,7 @@ function makeOps(overrides: Partial<AriOperations> = {}): AriOperations {
     originate: vi.fn().mockResolvedValue('callee-1'),
     startBridgeRecording: vi.fn().mockResolvedValue(undefined),
     stopRecording: vi.fn().mockResolvedValue(undefined),
+    getChannelVar: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   };
 }
@@ -44,6 +45,9 @@ let events: CallEvent[];
 function coordinator(
   customOps: AriOperations = ops,
   directory: CallDirectory = makeDirectory(),
+  traceRegistrar?: {
+    registerCallId: (callId: string, sipCallId: string) => void;
+  },
 ): CallCoordinator {
   return new CallCoordinator({
     ops: customOps,
@@ -51,6 +55,7 @@ function coordinator(
     appName: 'switchboard',
     logger,
     directory,
+    ...(traceRegistrar ? { traceRegistrar } : {}),
     now: () => '2026-07-13T10:00:00.000Z',
     idGen: () => 'call-1',
   });
@@ -192,6 +197,108 @@ describe('CallCoordinator — trunk caller (outbound, feature 16)', () => {
       to_number: '5551000',
       trunk_id: TRUNK_EXAMPLE.id,
     });
+  });
+
+  it('classifies an anonymous none-auth trunk call by context', async () => {
+    const directory = makeDirectory({
+      trunks: vi.fn().mockResolvedValue([TRUNK_EXAMPLE]),
+    });
+    const coord = coordinator(ops, directory);
+    await coord.onStasisStart({
+      type: 'StasisStart',
+      args: [],
+      channel: {
+        id: 'caller-1',
+        name: 'PJSIP/anonymous-00000001',
+        dialplan: { exten: '5551000', context: 'switchboard-trunk' },
+        caller: { number: 'sut' },
+      },
+    });
+    expect(ops.originate).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: 'PJSIP/1001' }),
+    );
+    expect(events[0]?.call).toMatchObject({
+      direction: 'outbound',
+      trunk_id: null,
+    });
+  });
+});
+
+describe('CallCoordinator — media and trace capture (features 3, 5)', () => {
+  it('captures the codec and registers each leg SIP Call-ID with the registrar', async () => {
+    const registrar = { registerCallId: vi.fn() };
+    const withVars = makeOps({
+      getChannelVar: vi
+        .fn()
+        .mockImplementation((_id: string, variable: string) =>
+          Promise.resolve(
+            variable === 'CHANNEL(audionativeformat)' ? '(ulaw)' : 'sip-abc@h',
+          ),
+        ),
+    });
+    const coord = coordinator(withVars, makeDirectory(), registrar);
+    await coord.onStasisStart(softphoneCaller);
+    await coord.onStasisStart(calleeEntered);
+    expect(events.at(-1)?.call.codec).toBe('ulaw');
+    expect(registrar.registerCallId).toHaveBeenCalledWith(
+      'call-1',
+      'sip-abc@h',
+    );
+  });
+
+  it('tolerates an empty codec and a missing trace registrar', async () => {
+    const withVars = makeOps({
+      getChannelVar: vi
+        .fn()
+        .mockImplementation((_id: string, variable: string) =>
+          Promise.resolve(
+            variable === 'CHANNEL(audionativeformat)' ? '' : 'sip-xyz@h',
+          ),
+        ),
+    });
+    const coord = coordinator(withVars);
+    await coord.onStasisStart(softphoneCaller);
+    await coord.onStasisStart(calleeEntered);
+    expect(events.at(-1)?.call.codec).toBeNull();
+  });
+});
+
+describe('CallCoordinator — live recording control (setRecording)', () => {
+  it('returns null for a call that is not live', async () => {
+    expect(await coordinator().setRecording('nope', true)).toBeNull();
+  });
+
+  it('starts, is idempotent, then stops recording a live call', async () => {
+    const coord = coordinator();
+    await coord.onStasisStart(softphoneCaller);
+    await coord.onStasisStart(calleeEntered);
+
+    const started = await coord.setRecording('call-1', true);
+    expect(ops.startBridgeRecording).toHaveBeenCalledWith('bridge-1', 'call-1');
+    expect(ops.startBridgeRecording).toHaveBeenCalledTimes(1);
+    expect(started?.recording).toBe('call-1.wav');
+    expect(events.at(-1)?.type).toBe('call.state_changed');
+
+    await coord.setRecording('call-1', true);
+    expect(ops.startBridgeRecording).toHaveBeenCalledTimes(1);
+
+    const stopped = await coord.setRecording('call-1', false);
+    expect(ops.stopRecording).toHaveBeenCalledWith('call-1');
+    expect(stopped?.recording).toBeNull();
+
+    await coord.setRecording('call-1', false);
+    expect(ops.stopRecording).toHaveBeenCalledTimes(1);
+  });
+
+  it('starts recording a call whose plan already named a file', async () => {
+    const directory = makeDirectory({
+      recordAll: vi.fn().mockResolvedValue(true),
+    });
+    const coord = coordinator(ops, directory);
+    await coord.onStasisStart(softphoneCaller);
+    const call = await coord.setRecording('call-1', true);
+    expect(ops.startBridgeRecording).toHaveBeenCalledWith('bridge-1', 'call-1');
+    expect(call?.recording).toBe('call-1.wav');
   });
 });
 

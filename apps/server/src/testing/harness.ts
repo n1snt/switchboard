@@ -13,6 +13,7 @@ import { migrate } from '../db/migrate';
 import { EventBus } from '../events/bus';
 import type { ApiServices } from '../http/router';
 import type { TrunkProvisioner } from '../modules/trunks/provisioner';
+import type { RecordingControl } from '../modules/calls/recording-control';
 
 // A ready-to-use control plane over a throwaway SQLite file, shared by the HTTP
 // route tests. Straight-line by design so it needs no coverage carve-out.
@@ -29,6 +30,7 @@ export interface TestApp {
 export interface TestAppOptions {
   provisioner?: TrunkProvisioner;
   getEngineStatus?: () => EngineStatus;
+  recordingControl?: RecordingControl;
 }
 
 export async function createTestApp(
@@ -48,6 +50,9 @@ export async function createTestApp(
     ...(options.provisioner ? { provisioner: options.provisioner } : {}),
     ...(options.getEngineStatus
       ? { getEngineStatus: options.getEngineStatus }
+      : {}),
+    ...(options.recordingControl
+      ? { recordingControl: options.recordingControl }
       : {}),
   });
   await app.ready();

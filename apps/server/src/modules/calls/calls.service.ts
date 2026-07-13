@@ -4,8 +4,12 @@
 import type { z } from 'zod';
 import type { CallListQuerySchema } from '@switchboard/shared';
 import type { Call, CallDetail } from '@switchboard/shared';
-import { notFound } from '../../plugins/errors';
+import { conflict, notFound } from '../../plugins/errors';
 import type { CallFilters, CallRepo } from './calls.repo';
+import {
+  noopRecordingControl,
+  type RecordingControl,
+} from './recording-control';
 import type { SipTraceStore } from './trace-store';
 
 export type CallListQueryInput = z.infer<typeof CallListQuerySchema>;
@@ -16,6 +20,7 @@ export class CallService {
   constructor(
     private readonly repo: CallRepo,
     private readonly traceStore: SipTraceStore,
+    private readonly recordingControl: RecordingControl = noopRecordingControl,
   ) {}
 
   list(query: CallListQueryInput): Promise<Call[]> {
@@ -43,5 +48,17 @@ export class CallService {
       throw notFound(`Call ${id} not found`);
     }
     return { ...call, sip_trace: await this.traceStore.get(id) };
+  }
+
+  /** Toggle recording on a live call (feature 24, the in-call Record control). */
+  async setRecording(id: string, enabled: boolean): Promise<Call> {
+    const live = await this.recordingControl.setRecording(id, enabled);
+    if (live !== null) {
+      return live;
+    }
+    if (!(await this.repo.get(id))) {
+      throw notFound(`Call ${id} not found`);
+    }
+    throw conflict(`Call ${id} is not currently live`);
   }
 }

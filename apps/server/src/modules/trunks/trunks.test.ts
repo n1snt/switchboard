@@ -43,9 +43,22 @@ describe('trunks HTTP', () => {
     expect(trunk.id).toMatch(/^trunk_/);
     expect(trunk.source).toBe('ui');
     expect(trunk.auth_mode).toBe('none');
+    expect(trunk.record).toBe(false);
     expect(provisioner.apply).toHaveBeenCalledWith(
       expect.objectContaining({ name: 'agent-dev' }),
     );
+  });
+
+  it('round-trips a trunk created with record enabled', async () => {
+    const res = await create({ ...quickAdd, record: true });
+    expect(res.statusCode).toBe(201);
+    const trunk = res.json<Trunk>();
+    expect(trunk.record).toBe(true);
+    const fetched = await harness.app.inject({
+      method: 'GET',
+      url: `/api/v1/trunks/${trunk.id}`,
+    });
+    expect(fetched.json<Trunk>().record).toBe(true);
   });
 
   it('rejects an invalid trunk with the error envelope', async () => {
@@ -175,6 +188,7 @@ function defaultsFor(name: string, host: string) {
     codecs: ['ulaw' as const],
     dtmf_mode: 'rfc2833' as const,
     media_encryption: 'none' as const,
+    record: false,
     max_cps: null,
     max_channels: null,
   };

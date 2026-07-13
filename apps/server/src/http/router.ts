@@ -17,6 +17,10 @@ import { registerRouteRoutes } from '../modules/routes/routes.routes';
 import { CallRepo } from '../modules/calls/calls.repo';
 import { CallService } from '../modules/calls/calls.service';
 import { registerCallRoutes } from '../modules/calls/calls.routes';
+import {
+  noopRecordingControl,
+  type RecordingControl,
+} from '../modules/calls/recording-control';
 import { InMemorySipTraceStore } from '../modules/calls/trace-store';
 import { SettingsRepo } from '../modules/settings/settings.repo';
 import { SettingsService } from '../modules/settings/settings.service';
@@ -27,6 +31,8 @@ export interface ApiDeps {
   db: Db;
   bus: EventBus;
   provisioner: TrunkProvisioner;
+  /** Controls recording on live calls; defaults to a no-op for engine-less runs. */
+  recordingControl?: RecordingControl;
 }
 
 /** The services the control plane builds once and shares (routes and background). */
@@ -47,7 +53,11 @@ export function buildServices(deps: ApiDeps): ApiServices {
     trunks: new TrunkService(new TrunkRepo(deps.db), deps.provisioner),
     numbers: new NumberService(new NumberRepo(deps.db), new TrunkRepo(deps.db)),
     routes: new RouteService(new RouteRepo(deps.db)),
-    calls: new CallService(new CallRepo(deps.db), traceStore),
+    calls: new CallService(
+      new CallRepo(deps.db),
+      traceStore,
+      deps.recordingControl ?? noopRecordingControl,
+    ),
     settings: new SettingsService(new SettingsRepo(deps.db)),
     traceStore,
   };

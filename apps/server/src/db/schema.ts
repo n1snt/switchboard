@@ -36,6 +36,7 @@ export interface TrunksTable {
   codecs: string;
   dtmf_mode: string;
   media_encryption: string;
+  record: number;
   max_cps: number | null;
   max_channels: number | null;
   source: string;

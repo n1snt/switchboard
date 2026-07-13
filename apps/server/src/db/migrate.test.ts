@@ -28,6 +28,7 @@ describe('migrate', () => {
       '0001_init',
       '0002_pjsip_realtime',
       '0003_pjsip_identify',
+      '0004_trunk_record',
     ]);
 
     const tables = await db.introspection.getTables();
@@ -58,6 +59,7 @@ describe('migrate', () => {
         'codecs',
         'dtmf_mode',
         'media_encryption',
+        'record',
         'dial_rewrite',
         'source',
         'created_at',

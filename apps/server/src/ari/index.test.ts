@@ -34,6 +34,7 @@ function makeClient() {
       answer: vi.fn().mockResolvedValue(undefined),
       hangup: vi.fn().mockResolvedValue(undefined),
       originate: vi.fn().mockResolvedValue({ id: 'callee-1' }),
+      getChannelVar: vi.fn().mockResolvedValue({ value: 'ulaw' }),
     },
     bridges: {
       create: vi.fn().mockResolvedValue({ id: 'bridge-1' }),
@@ -103,5 +104,28 @@ describe('createAri', () => {
     });
     await flush();
     expect(events[0]?.type).toBe('call.created');
+  });
+
+  it('exposes the coordinator and wires the trace registrar', async () => {
+    const { client } = makeClient();
+    const bus = new EventBus();
+    const registrar = { registerCallId: vi.fn() };
+    let exposed = false;
+
+    const ari = createAri({
+      connect: vi.fn().mockResolvedValue(client),
+      appName: 'switchboard',
+      bus,
+      logger,
+      directory,
+      traceRegistrar: registrar,
+      onCoordinator: () => {
+        exposed = true;
+      },
+      now: () => '2026-07-13T10:00:00.000Z',
+      idGen: () => 'call-1',
+    });
+    await ari.start();
+    expect(exposed).toBe(true);
   });
 });

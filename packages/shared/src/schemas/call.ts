@@ -81,6 +81,11 @@ export const SipTraceEntrySchema = z.object({
   summary: z.string().describe('A short human-readable line for the ladder.'),
 });
 
+/** Body for toggling recording on an in-progress call (feature 24, per-call). */
+export const CallRecordingUpdateSchema = z.object({
+  enabled: z.boolean().describe('Whether to record this in-progress call.'),
+});
+
 /** A call plus its SIP trace (feature 23), returned by the detail endpoint. */
 export const CallDetailSchema = CallSchema.extend({
   sip_trace: z
@@ -94,6 +99,7 @@ export type Call = z.infer<typeof CallSchema>;
 export type SipTraceEntry = z.infer<typeof SipTraceEntrySchema>;
 export type CallDetail = z.infer<typeof CallDetailSchema>;
 export type CallListQuery = z.input<typeof CallListQuerySchema>;
+export type CallRecordingUpdate = z.infer<typeof CallRecordingUpdateSchema>;
 
 export const CALL_EXAMPLE: Call = {
   id: 'call_YWJjZGVm',

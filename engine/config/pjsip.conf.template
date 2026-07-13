@@ -65,16 +65,29 @@ external_signaling_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
 ; accept only TCP for signaling and silently drop UDP (architecture.md,
 ; "Reproducing real carrier behavior"), so a trunk needs to be able to pin
 ; itself to TCP specifically rather than always riding UDP. Same advertised
-; address as transport-udp; only the wire protocol differs. Trunks with
-; transport "tls" are a known gap (see engine-provisioning.md): TLS needs a
-; certificate mounted in, which nothing here does yet, mirroring the
-; already-documented wss:// gap in http.conf/containers.md.
+; address as transport-udp; only the wire protocol differs.
 [transport-tcp]
 type = transport
 protocol = tcp
 bind = 0.0.0.0
 external_media_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
 external_signaling_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
+
+; TLS transport for trunks that require encrypted SIP signaling. This is the
+; enable-path for trunks with transport "tls" (data-model.md). Uncomment this
+; block, mount a certificate and key into the engine, and set the trunk's
+; transport column to "tls" to use it. This is disabled by default because the
+; localhost sandbox does not need it; enable only when reaching the engine from
+; beyond localhost (see documentation/dev/containers.md's TLS section).
+;
+; [transport-tls]
+; type = transport
+; protocol = tls
+; bind = 0.0.0.0:5061
+; external_media_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
+; external_signaling_address = ${SWITCHBOARD_ADVERTISED_ADDRESS}
+; cert_file = /etc/asterisk/keys/tls-cert.pem
+; priv_key_file = /etc/asterisk/keys/tls-key.pem
 
 ;==============================================================================
 ; Browser WebRTC endpoints (walking skeleton, feature 9)

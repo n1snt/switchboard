@@ -19,6 +19,7 @@ import { applyEnvTrunks } from './modules/trunks/env-provisioning';
 import { CallRepo } from './modules/calls/calls.repo';
 import { CallWriter } from './modules/calls/call-writer';
 import { SipTraceCapture } from './modules/calls/sip-trace-capture';
+import { LiveRecordingControl } from './modules/calls/recording-control';
 import type { Logger } from './logger';
 
 async function main(): Promise<void> {
@@ -44,11 +45,16 @@ async function main(): Promise<void> {
     error: (msg) => log.error(msg),
   });
 
+  // Bridges the recording-control route to whichever coordinator is connected
+  // (feature 24, the in-call Record toggle).
+  const recordingControl = new LiveRecordingControl();
+
   const { app, services } = await buildApp({
     config,
     db,
     bus,
     provisioner: createRealtimeProvisioner(db),
+    recordingControl,
     logger: { level: 'info' },
     getEngineStatus: () => ari.getStatus(),
   });
@@ -98,6 +104,8 @@ async function main(): Promise<void> {
     bus,
     logger,
     directory,
+    traceRegistrar: traceCapture,
+    onCoordinator: (coordinator) => recordingControl.attach(coordinator),
   });
   void ari.start();
 

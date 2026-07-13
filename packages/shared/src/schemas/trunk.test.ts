@@ -21,6 +21,7 @@ describe('TrunkCreateSchema defaults', () => {
     expect(parsed.target_port).toBe(5060);
     expect(parsed.codecs).toEqual(['ulaw', 'alaw']);
     expect(parsed.dtmf_mode).toBe('rfc2833');
+    expect(parsed.record).toBe(false);
     expect(parsed.max_cps).toBeNull();
     expect(parsed.dial_rewrite).toEqual({ rules: [] });
   });

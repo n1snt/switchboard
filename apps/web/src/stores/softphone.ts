@@ -27,6 +27,8 @@ export type CallDirection = 'placed' | 'received';
 export interface ActiveCall {
   peer: string;
   direction: CallDirection;
+  /** The server's call id, correlated in once the event stream reports it. */
+  id?: string;
 }
 
 /** How many recent destinations the dialler surfaces. */
@@ -57,11 +59,15 @@ interface SoftphoneState {
   incoming: readonly IncomingCallInfo[];
   recents: readonly string[];
   adapter: SipAdapter;
+  /** Injected at composition time to push a recording change to the server. */
+  recordingControl: (id: string, enabled: boolean) => void;
 }
 
 interface SoftphoneActions {
   /** Wire the imperative SIP session. Done once at composition time. */
   attachAdapter: (adapter: SipAdapter) => void;
+  /** Wire the server recording endpoint. Done once at composition time. */
+  attachRecordingControl: (fn: (id: string, enabled: boolean) => void) => void;
   /** Begin registration; the session reports the outcome via setRegistration. */
   register: () => void;
   setRegistration: (status: RegistrationStatus) => void;
@@ -77,6 +83,8 @@ interface SoftphoneActions {
   removeIncoming: (id: string) => void;
   /** Accept a queued incoming call and move into it. */
   acceptIncoming: (id: string) => void;
+  /** Correlate the server's call id onto the (single) active call, once known. */
+  linkActiveCall: (id: string) => void;
   /** Reject a queued incoming call. */
   declineIncoming: (id: string) => void;
   /** Hang up the active call. */
@@ -107,6 +115,7 @@ const initialState: SoftphoneState = {
   incoming: [],
   recents: [],
   adapter: nullSipAdapter,
+  recordingControl: () => {},
 };
 
 /** Fresh baseline state, used to reset the store (e.g. between tests). */
@@ -119,6 +128,10 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
 
   attachAdapter: (adapter) => {
     set({ adapter });
+  },
+
+  attachRecordingControl: (fn) => {
+    set({ recordingControl: fn });
   },
 
   register: () => {
@@ -170,13 +183,20 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
     get().adapter.answer(id);
     set((state) => ({
       callState: 'in-call',
-      activeCall: { peer: info.from, direction: 'received' },
+      activeCall: { peer: info.from, direction: 'received', id: info.id },
       muted: false,
       held: false,
       recording: false,
       answeredAt: Date.now(),
       incoming: state.incoming.filter((entry) => entry.id !== id),
     }));
+  },
+
+  linkActiveCall: (id) => {
+    const { activeCall } = get();
+    if (activeCall && !activeCall.id) {
+      set({ activeCall: { ...activeCall, id } });
+    }
   },
 
   declineIncoming: (id) => {
@@ -204,7 +224,12 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
   },
 
   toggleRecording: () => {
-    set((state) => ({ recording: !state.recording }));
+    const recording = !get().recording;
+    set({ recording });
+    const callId = get().activeCall?.id;
+    if (callId) {
+      get().recordingControl(callId, recording);
+    }
   },
 
   setVolume: (volume) => {
