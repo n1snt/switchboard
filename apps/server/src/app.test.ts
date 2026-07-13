@@ -2,25 +2,19 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { FastifyInstance } from 'fastify';
 import type { ApiError, Health } from '@switchboard/shared';
-import { buildApp } from './app';
-import { loadConfig } from './config';
-import { EventBus } from './events/bus';
+import { createTestApp, type TestApp } from './testing/harness';
 
-let app: FastifyInstance;
+let harness: TestApp;
+let app: TestApp['app'];
 
 beforeAll(async () => {
-  app = await buildApp({
-    config: loadConfig({}),
-    bus: new EventBus(),
-    getEngineStatus: () => 'connected',
-  });
-  await app.ready();
+  harness = await createTestApp({ getEngineStatus: () => 'connected' });
+  app = harness.app;
 });
 
 afterAll(async () => {
-  await app.close();
+  await harness.close();
 });
 
 describe('GET /api/v1/health', () => {
@@ -79,11 +73,8 @@ describe('OpenAPI document and Swagger UI', () => {
 
 describe('engine status default', () => {
   it('defaults to disconnected when no getter is supplied', async () => {
-    const bare = await buildApp({
-      config: loadConfig({}),
-      bus: new EventBus(),
-    });
-    const res = await bare.inject({ method: 'GET', url: '/api/v1/health' });
+    const bare = await createTestApp();
+    const res = await bare.app.inject({ method: 'GET', url: '/api/v1/health' });
     expect(res.json<Health>().engine).toBe('disconnected');
     await bare.close();
   });

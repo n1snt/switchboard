@@ -13,6 +13,10 @@ import { migrate } from './db/migrate';
 import { buildApp } from './app';
 import { EventBus } from './events/bus';
 import { createAri, realConnector } from './ari';
+import { createRealtimeProvisioner } from './modules/trunks/realtime-provisioner';
+import { applyEnvTrunks } from './modules/trunks/env-provisioning';
+import { CallRepo } from './modules/calls/calls.repo';
+import { CallWriter } from './modules/calls/call-writer';
 import type { Logger } from './logger';
 
 async function main(): Promise<void> {
@@ -38,18 +42,41 @@ async function main(): Promise<void> {
     error: (msg) => log.error(msg),
   });
 
-  const app = await buildApp({
+  const { app, services } = await buildApp({
     config,
+    db,
     bus,
+    provisioner: createRealtimeProvisioner(db),
     logger: { level: 'info' },
     getEngineStatus: () => ari.getStatus(),
   });
+
+  const logger = buildLogger(app.log);
+
+  // Persist every call from the event bus (feature 21).
+  new CallWriter(new CallRepo(db), logger).subscribe(bus);
+
+  // Seed the record-all setting from the environment when it is explicitly set
+  // (feature 25); the environment wins on boot, otherwise the stored value stays.
+  await services.settings.seedRecordAll(
+    process.env.SWITCHBOARD_RECORD_ALL !== undefined
+      ? config.recordAll
+      : undefined,
+  );
+
+  // Provision environment-managed trunks (feature 13). A bad value is logged, not
+  // fatal, so the rest of the control plane still starts.
+  try {
+    await applyEnvTrunks(config.sipServers, services.trunks, logger);
+  } catch (err) {
+    logger.error(`env: ${String(err)}`);
+  }
 
   const ari = createAri({
     connect: realConnector(config.ari),
     appName: config.ari.app,
     bus,
-    logger: buildLogger(app.log),
+    logger,
   });
   void ari.start();
 

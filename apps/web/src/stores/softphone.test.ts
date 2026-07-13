@@ -9,7 +9,9 @@ import {
 } from '@/features/softphone/adapter';
 import {
   createInitialState,
+  MAX_RECENTS,
   useSoftphoneStore,
+  withRecent,
   type SoftphoneStore,
 } from './softphone';
 
@@ -50,10 +52,26 @@ describe('createInitialState', () => {
       callState: 'idle',
       muted: false,
       held: false,
+      recording: false,
+      volume: 1,
+      codec: null,
+      answeredAt: null,
       activeCall: null,
       incoming: [],
+      recents: [],
       adapter: nullSipAdapter,
     });
+  });
+});
+
+describe('withRecent', () => {
+  it('puts the target first, de-duplicates, and caps the list', () => {
+    expect(withRecent([], 'a')).toEqual(['a']);
+    expect(withRecent(['a', 'b'], 'b')).toEqual(['b', 'a']);
+    const many = Array.from({ length: MAX_RECENTS }, (_, i) => `n${String(i)}`);
+    const result = withRecent(many, 'new');
+    expect(result).toHaveLength(MAX_RECENTS);
+    expect(result[0]).toBe('new');
   });
 });
 
@@ -184,5 +202,51 @@ describe('softphone store with an adapter attached', () => {
     store().receiveIncoming(incoming);
     store().declineIncoming('in-1');
     expect(adapter.decline).toHaveBeenCalledWith('in-1');
+  });
+});
+
+describe('softphone extended call controls', () => {
+  it('tracks recents and resets per-call state when placing a call', () => {
+    store().setCodec('ulaw');
+    store().toggleRecording();
+    store().placeCall('carrier-sim');
+    store().placeCall('agent-dev');
+    expect(store().recents).toEqual(['agent-dev', 'carrier-sim']);
+    expect(store().codec).toBeNull();
+    expect(store().recording).toBe(false);
+    expect(store().answeredAt).toBeNull();
+  });
+
+  it('stamps answeredAt when the call connects', () => {
+    store().callAnswered();
+    expect(store().callState).toBe('in-call');
+    expect(typeof store().answeredAt).toBe('number');
+  });
+
+  it('stamps answeredAt when accepting an incoming call', () => {
+    store().receiveIncoming(incoming);
+    store().acceptIncoming('in-1');
+    expect(typeof store().answeredAt).toBe('number');
+  });
+
+  it('removes an incoming call without declining it', () => {
+    store().receiveIncoming(incoming);
+    store().removeIncoming('in-1');
+    expect(store().incoming).toEqual([]);
+  });
+
+  it('toggles recording, sets volume and codec', () => {
+    store().toggleRecording();
+    expect(store().recording).toBe(true);
+    store().toggleRecording();
+    expect(store().recording).toBe(false);
+
+    store().setVolume(0.4);
+    expect(store().volume).toBe(0.4);
+
+    store().setCodec('opus');
+    expect(store().codec).toBe('opus');
+    store().setCodec(null);
+    expect(store().codec).toBeNull();
   });
 });

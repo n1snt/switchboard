@@ -1,9 +1,15 @@
 // Copyright 2026 Nishant Bhandari
 // SPDX-License-Identifier: Apache-2.0
 
-import type { Health } from '@switchboard/shared';
+import { TRUNK_EXAMPLE, type Health } from '@switchboard/shared';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fetchHealth, healthQueryKey } from './api';
+import {
+  apiClient,
+  apiErrorMessage,
+  fetchHealth,
+  healthQueryKey,
+  recordingUrl,
+} from './api';
 
 const validHealth: Health = {
   status: 'ok',
@@ -59,5 +65,44 @@ describe('fetchHealth', () => {
   it('throws when the body does not match the schema', async () => {
     mockFetch({ json: () => Promise.resolve({ status: 'nope' }) });
     await expect(fetchHealth()).rejects.toThrow();
+  });
+});
+
+describe('apiErrorMessage', () => {
+  it('extracts the message from the shared error envelope', () => {
+    expect(apiErrorMessage({ error: { code: 'bad', message: 'Nope' } })).toBe(
+      'Nope',
+    );
+  });
+
+  it('falls back to a generic message for an unexpected body', () => {
+    expect(apiErrorMessage({ oops: true })).toBe('Request failed');
+  });
+});
+
+describe('recordingUrl', () => {
+  it('builds the relative binary download URL for a call', () => {
+    expect(recordingUrl('call_1')).toBe('/api/v1/calls/call_1/recording');
+  });
+});
+
+describe('apiClient', () => {
+  it('issues relative requests and returns the typed body', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify([TRUNK_EXAMPLE]), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await apiClient.trunks.list();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/trunks',
+      expect.objectContaining({ method: 'GET' }),
+    );
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual([TRUNK_EXAMPLE]);
   });
 });

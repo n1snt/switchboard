@@ -144,6 +144,50 @@ every incoming ARI event is validated with Zod before use.
   WebSocket lifecycle events into the engine status the health endpoint reports.
   `ari-client` handles reconnection after a drop on its own.
 
+## Resource APIs and call features (Part C, D, and E)
+
+The REST resources are implemented as vertical slices under `modules/<resource>/`:
+a `*.repo.ts` (the only code that queries its table), a `*.service.ts` (logic,
+id and timestamp generation, cross-field checks), and a `*.routes.ts` that binds
+the resource's slice of the ts-rest contract to Fastify. `http/router.ts` builds
+the services once and registers each sub-contract in its own encapsulated Fastify
+scope, so the shared error envelope stays in force and request-validation failures
+are mapped to it (`http/ts-rest.ts`). Trunks, numbers, routes, calls, and settings
+are implemented; faults arrive in Part F.
+
+- **Trunks** (feature 10) are full CRUD. Creating or updating a trunk reflects it
+  onto the engine through a `TrunkProvisioner`; deleting removes it.
+- **Trunk provisioning** (feature 11, Decision D1) is `realtime-provisioner.ts`:
+  it maps a trunk to `ps_endpoints`, `ps_auths`, and `ps_aors` rows (auth only when
+  the trunk has credentials, `outbound_auth` only when it registers), idempotently.
+  The `0002_pjsip_realtime` migration creates those tables.
+- **Environment provisioning** (feature 13) parses `SWITCHBOARD_SIP_SERVERS` at
+  boot, maps each camelCase entry to the trunk schema, and upserts it by name with
+  `source: env`, so the environment stays the source of truth across restarts.
+- **Numbers** (feature 14) validate that their trunk exists and carries inbound
+  calls. **Routes** (feature 15) are CRUD plus the pure `matchRoute` (pattern match
+  with priority) the call features call.
+- **Placing a call** (features 16 and 17) is backed by the pure helpers in
+  `calls/dialing.ts`: `resolveDialTarget` (a saved number to its trunk, a trunk by
+  name, or an ad-hoc SIP URI) and `applyDialRewrite` (technical prefix and rewrite
+  rules). The originate and bridge happen against a real engine.
+- **Call persistence** (feature 21) is `CallWriter`, a bus subscriber that upserts
+  the full call snapshot carried by every event, so the `calls` table always
+  reflects the current timeline.
+- **The call log** (feature 22) is the `calls` list endpoint, filterable by
+  direction (placed/received, mapped to inbound/outbound), trunk, state, and time.
+- **The SIP trace** (feature 23): `sip-trace-parser.ts` turns Asterisk's PJSIP
+  logger output into ladder entries, stored per call in an `InMemorySipTraceStore`
+  and returned by the call detail endpoint. The live capture from the engine is
+  wired against a running engine.
+- **Recording** (feature 24): `resolveRecordEnabled` decides most-specific-first
+  (per-call, then per-trunk, then the global setting or `SWITCHBOARD_RECORD_ALL`),
+  and a binary download route streams a finished recording from the recordings
+  directory (with a path-traversal guard). The engine (MixMonitor over ARI) does
+  the capture.
+- **Settings** (feature 25) read and write the global options, with defaults from
+  the schema and an environment override applied on boot.
+
 ## Configuration (environment variables)
 
 | Variable | Default | Meaning |

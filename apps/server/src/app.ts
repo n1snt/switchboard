@@ -11,15 +11,31 @@ import {
 } from '@switchboard/shared';
 import type { EngineStatus, Health } from '@switchboard/shared';
 import type { Config } from './config';
+import type { Db } from './db';
 import type { EventBus } from './events/bus';
 import { registerEventStream } from './events/ws';
 import { registerErrorHandler } from './plugins/errors';
 import { registerOpenApi } from './plugins/openapi';
+import {
+  buildServices,
+  registerApiRoutes,
+  type ApiServices,
+} from './http/router';
+import {
+  noopProvisioner,
+  type TrunkProvisioner,
+} from './modules/trunks/provisioner';
+import { CallRepo } from './modules/calls/calls.repo';
+import { registerRecordingRoutes } from './modules/recording/recording';
 
 export interface AppOptions {
   config: Config;
+  /** The database the resource repositories read and write. */
+  db: Db;
   /** The internal event bus, streamed to dashboards over the WS route. */
   bus: EventBus;
+  /** Reflects trunks onto the engine; defaults to a no-op for engine-less runs. */
+  provisioner?: TrunkProvisioner;
   /**
    * Reports the live ARI connection state for the health endpoint. Feature 7
    * supplies the real getter; it defaults to `disconnected` so the app is
@@ -35,10 +51,14 @@ export interface AppOptions {
  * endpoint. Resource routes are registered by their own features. Does not
  * listen; server.ts owns the lifecycle.
  */
-export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
+export async function buildApp(
+  options: AppOptions,
+): Promise<{ app: FastifyInstance; services: ApiServices }> {
   const {
     config,
+    db,
     bus,
+    provisioner = noopProvisioner,
     getEngineStatus = (): EngineStatus => 'disconnected',
     logger = false,
   } = options;
@@ -59,5 +79,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     return HealthSchema.parse(body);
   });
 
-  return app;
+  const services = buildServices({ db, bus, provisioner });
+  await registerApiRoutes(app, services);
+  registerRecordingRoutes(app, new CallRepo(db), config.recordingsDir);
+
+  return { app, services };
 }

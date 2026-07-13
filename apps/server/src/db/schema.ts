@@ -78,10 +78,39 @@ export interface SettingsTable {
   updated_at: string;
 }
 
+// PJSIP realtime tables (Decision D1). Asterisk reads these directly; the trunk
+// provisioner (feature 11) is the only code that writes them.
+export interface PsAorsTable {
+  id: string;
+  contact: string | null;
+  max_contacts: number | null;
+  qualify_frequency: number | null;
+}
+
+export interface PsAuthsTable {
+  id: string;
+  auth_type: string | null;
+  username: string | null;
+  password: string | null;
+  realm: string | null;
+}
+
+export interface PsEndpointsTable {
+  id: string;
+  transport: string | null;
+  aors: string | null;
+  auth: string | null;
+  outbound_auth: string | null;
+  context: string | null;
+  disallow: string | null;
+  allow: string | null;
+  direct_media: string | null;
+  dtmf_mode: string | null;
+}
+
 /**
- * The full database shape. `fault_profiles` and the PJSIP realtime tables are
- * added by their own features (26 and 11); they are absent here so the interface
- * only ever describes tables that a migration has created.
+ * The full database shape. `fault_profiles` is added by feature 26; it is absent
+ * here so the interface only ever describes tables that a migration has created.
  */
 export interface Database {
   migrations: MigrationsTable;
@@ -90,4 +119,7 @@ export interface Database {
   routes: RoutesTable;
   calls: CallsTable;
   settings: SettingsTable;
+  ps_aors: PsAorsTable;
+  ps_auths: PsAuthsTable;
+  ps_endpoints: PsEndpointsTable;
 }

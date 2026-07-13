@@ -1115,17 +1115,20 @@ Resolved (settled and reflected throughout this document):
 - **UI**: Tailwind with Radix headless primitives (via shadcn/ui).
 - **Shell**: left sidebar with contextual section tabs.
 - **License**: Apache-2.0.
-- **D2** (feature 3): one SQLite file for both the application tables and, when
-  added in feature 11, the Asterisk realtime tables. Adopted. The application
-  tables (`trunks`, `numbers`, `routes`, `calls`, `settings`) are created by the
-  initial migration; the realtime tables are added by feature 11 in the same file.
+- **D2** (feature 3): one SQLite file for both the application tables and the
+  Asterisk realtime tables. Adopted. The application tables (`trunks`, `numbers`,
+  `routes`, `calls`, `settings`) are created by the initial migration; the PJSIP
+  realtime tables (`ps_endpoints`, `ps_auths`, `ps_aors`) are added by feature 11
+  in the same file.
+- **D1** (feature 11): PJSIP Realtime, adopted and implemented. A saved trunk is
+  provisioned as `ps_endpoints`/`ps_auths`/`ps_aors` rows in the shared SQLite
+  file; Asterisk reads them through `res_config_sqlite3` and sorcery, so a trunk
+  becomes a live endpoint with no reload. Static WebRTC endpoints (feature 9) and
+  realtime trunks coexist. See [control-plane.md](control-plane.md) and
+  [engine-provisioning.md](engine-provisioning.md).
 
 Still open:
 
-- **D1** (feature 11): PJSIP Realtime vs config generation for dynamic trunks.
-  Recommendation: PJSIP Realtime. This shapes feature 11. The walking skeleton
-  (feature 9) uses two static WebRTC endpoints in engine config, so it does not
-  depend on this decision.
 - **Naming** (feature 32): published package or domain qualifier, per the README.
 
 ## Appendix: features mapped to milestones

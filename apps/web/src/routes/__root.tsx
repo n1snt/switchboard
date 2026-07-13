@@ -3,13 +3,14 @@
 
 import { createRootRoute, Outlet } from '@tanstack/react-router';
 import type { ReactNode } from 'react';
+import { CallOverlay } from '@/components/call-overlay';
 import { Header } from '@/components/shell/header';
 import { Sidebar } from '@/components/shell/sidebar';
+import { CallBar } from '@/features/softphone/call-bar';
 
-// The application shell: a persistent header, the collapsible left sidebar, and
-// the routed content in an <Outlet />. Two slots are reserved but inert for the
-// skeleton: the docked call bar (feature 20) and the global incoming-call
-// overlay (feature 19).
+// The application shell: a persistent header, the collapsible left sidebar, the
+// routed content in an <Outlet />, the docked call bar (visible during a call),
+// and the global incoming-call overlay floating above everything.
 
 export const Route = createRootRoute({ component: RootLayout });
 
@@ -23,8 +24,8 @@ function RootLayout(): ReactNode {
           <Outlet />
         </main>
       </div>
-      {/* Docked call-bar slot: activated in feature 20. */}
-      {/* Global incoming-call overlay slot: activated in feature 19. */}
+      <CallBar />
+      <CallOverlay />
     </div>
   );
 }

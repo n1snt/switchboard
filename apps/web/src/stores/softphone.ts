@@ -29,13 +29,33 @@ export interface ActiveCall {
   direction: CallDirection;
 }
 
+/** How many recent destinations the dialler surfaces. */
+export const MAX_RECENTS = 5;
+
+/** Put `target` at the front of the recents list, de-duplicated and capped. */
+export function withRecent(
+  recents: readonly string[],
+  target: string,
+): string[] {
+  return [target, ...recents.filter((entry) => entry !== target)].slice(
+    0,
+    MAX_RECENTS,
+  );
+}
+
 interface SoftphoneState {
   registration: RegistrationStatus;
   callState: CallState;
   muted: boolean;
   held: boolean;
+  recording: boolean;
+  volume: number;
+  codec: string | null;
+  /** Epoch milliseconds when the active call connected, for the duration timer. */
+  answeredAt: number | null;
   activeCall: ActiveCall | null;
   incoming: readonly IncomingCallInfo[];
+  recents: readonly string[];
   adapter: SipAdapter;
 }
 
@@ -53,6 +73,8 @@ interface SoftphoneActions {
   callAnswered: () => void;
   /** Queue an incoming call surfaced by the session or the event stream. */
   receiveIncoming: (info: IncomingCallInfo) => void;
+  /** Remove a queued incoming call without rejecting it (e.g. caller cancelled). */
+  removeIncoming: (id: string) => void;
   /** Accept a queued incoming call and move into it. */
   acceptIncoming: (id: string) => void;
   /** Reject a queued incoming call. */
@@ -61,6 +83,10 @@ interface SoftphoneActions {
   hangup: () => void;
   toggleMute: () => void;
   toggleHold: () => void;
+  toggleRecording: () => void;
+  setVolume: (volume: number) => void;
+  /** Record the negotiated codec reported by the session or the event stream. */
+  setCodec: (codec: string | null) => void;
   sendDtmf: (digit: string) => void;
   /** Return to the idle baseline after a call ends. */
   reset: () => void;
@@ -73,14 +99,19 @@ const initialState: SoftphoneState = {
   callState: 'idle',
   muted: false,
   held: false,
+  recording: false,
+  volume: 1,
+  codec: null,
+  answeredAt: null,
   activeCall: null,
   incoming: [],
+  recents: [],
   adapter: nullSipAdapter,
 };
 
 /** Fresh baseline state, used to reset the store (e.g. between tests). */
 export function createInitialState(): SoftphoneState {
-  return { ...initialState, incoming: [] };
+  return { ...initialState, incoming: [], recents: [] };
 }
 
 export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
@@ -101,12 +132,16 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
 
   placeCall: (target) => {
     get().adapter.call(target);
-    set({
+    set((state) => ({
       callState: 'calling',
       activeCall: { peer: target, direction: 'placed' },
       muted: false,
       held: false,
-    });
+      recording: false,
+      codec: null,
+      answeredAt: null,
+      recents: withRecent(state.recents, target),
+    }));
   },
 
   outgoingRinging: () => {
@@ -114,11 +149,17 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
   },
 
   callAnswered: () => {
-    set({ callState: 'in-call' });
+    set({ callState: 'in-call', answeredAt: Date.now() });
   },
 
   receiveIncoming: (info) => {
     set((state) => ({ incoming: [...state.incoming, info] }));
+  },
+
+  removeIncoming: (id) => {
+    set((state) => ({
+      incoming: state.incoming.filter((entry) => entry.id !== id),
+    }));
   },
 
   acceptIncoming: (id) => {
@@ -132,6 +173,8 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
       activeCall: { peer: info.from, direction: 'received' },
       muted: false,
       held: false,
+      recording: false,
+      answeredAt: Date.now(),
       incoming: state.incoming.filter((entry) => entry.id !== id),
     }));
   },
@@ -160,6 +203,18 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
     set({ held });
   },
 
+  toggleRecording: () => {
+    set((state) => ({ recording: !state.recording }));
+  },
+
+  setVolume: (volume) => {
+    set({ volume });
+  },
+
+  setCodec: (codec) => {
+    set({ codec });
+  },
+
   sendDtmf: (digit) => {
     get().adapter.sendDtmf(digit);
   },
@@ -169,6 +224,9 @@ export const useSoftphoneStore = create<SoftphoneStore>((set, get) => ({
       callState: 'idle',
       muted: false,
       held: false,
+      recording: false,
+      codec: null,
+      answeredAt: null,
       activeCall: null,
     });
   },

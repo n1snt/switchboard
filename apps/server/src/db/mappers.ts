@@ -1,7 +1,7 @@
 // Copyright 2026 Nishant Bhandari
 // SPDX-License-Identifier: Apache-2.0
 
-import type { ZodType } from 'zod';
+import type { z, ZodTypeAny } from 'zod';
 
 // Edge mappers between SQLite column types and domain values. Booleans are stored
 // as integers (0/1) and JSON columns as text; every repository uses these so the
@@ -25,7 +25,14 @@ export function toJsonColumn(value: unknown): string {
 /**
  * Parse a JSON text column and validate it with the owning entity's Zod schema,
  * so a corrupt or stale column is rejected at the boundary rather than trusted.
+ * Returns the schema's output type.
  */
-export function fromJsonColumn<T>(text: string, schema: ZodType<T>): T {
+export function fromJsonColumn<S extends ZodTypeAny>(
+  text: string,
+  schema: S,
+): z.infer<S> {
+  // zod's generic `parse` is typed `any` internally; the return type is precise
+  // at each call site, which is what callers rely on.
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-return
   return schema.parse(JSON.parse(text));
 }

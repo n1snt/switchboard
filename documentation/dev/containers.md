@@ -58,15 +58,19 @@ configuration:
 - `engine/config/http.conf` — enables Asterisk's HTTP server on `8088`. Both
   ARI and the browser's SIP-signaling WS ride on this one port (see
   "Two ports, sort of" below).
-- `engine/config/extensions.conf` — a Stasis-only dialplan: `_10XX` (matching
-  extensions 1000-1099) enters `Stasis(switchboard)` and nothing else. No
-  `Dial()` — the control plane reads the dialed extension off the caller
-  channel (`channel.dialplan.exten`) on `StasisStart` and originates the
-  callee leg itself, back into the same Stasis app (see
+- `engine/config/extensions.conf` — a Stasis-only dialplan, two contexts:
+  `switchboard-webrtc` (`_10XX`, matching extensions 1000-1099, for the two
+  static browser endpoints) and `switchboard-trunk` (any dialed number, for
+  provisioned trunks, added by implementation.md feature 11/16 — see
+  [engine-provisioning.md](engine-provisioning.md)). Both just enter
+  `Stasis(switchboard)` and nothing else. No `Dial()` — the control plane
+  reads the dialed extension off the caller channel
+  (`channel.dialplan.exten`) on `StasisStart` and originates the callee leg
+  itself, back into the same Stasis app (see
   `apps/server/src/ari/coordinator.ts`). This is why trunk-specific dialplan
-  never needs to exist: everything past "enter Stasis" is the control
-  plane's job, and trunks (feature 10/11) are provisioned into PJSIP at
-  runtime, never into this file.
+  is one catch-all context, not one entry per trunk: everything past "enter
+  Stasis" is the control plane's job, and trunks themselves (feature 10/11)
+  are provisioned into PJSIP realtime at runtime, never into this file.
 - `engine/config/pjsip.conf.template`, `ari.conf.template`,
   `rtp.conf.template` — rendered into their `.conf` counterparts at container
   start by `engine/docker-entrypoint.sh`, which runs `envsubst` (shipped in
@@ -239,6 +243,14 @@ on one bridge network (`switchboard`), plus two named volumes
 between the engine, which will write to it via `MixMonitor`, and the API,
 which will serve playback/download — ahead of call recording,
 implementation.md feature 24).
+
+`switchboard-db-data` is now mounted on **both** the API (`/app/data`) and
+the engine (`/var/lib/switchboard/db`), added by implementation.md feature 11
+so PJSIP Realtime can read the trunks the API provisions into the same
+SQLite file. See [engine-provisioning.md](engine-provisioning.md) for the
+full write-up, including why the engine-side mount directory is baked into
+`engine/Dockerfile` as world-writable rather than chowned to one container's
+non-root user.
 
 Every service sets both `image:` and `build:`. Compose's documented behavior
 for that combination, with no `pull_policy` set, is "pull the image first,

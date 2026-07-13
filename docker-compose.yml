@@ -83,6 +83,17 @@ services:
     # feature 24), since that is where Asterisk's MixMonitor will write.
     volumes:
       - switchboard-recordings:/var/spool/asterisk/monitor
+      # switchboard-db-data is the SAME volume switchboard-api mounts at
+      # /app/data below — Decision D2, one SQLite file. Mounted here so
+      # PJSIP realtime (config/sorcery.conf + config/extconfig.conf +
+      # config/res_config_sqlite3.conf) can read the ps_endpoints/ps_auths/
+      # ps_aors rows switchboard-api provisions at runtime (implementation.md
+      # feature 11), with no reload needed when a trunk changes. The mount
+      # path differs (engine-owned, not app-owned); the file underneath is
+      # identical. See documentation/dev/engine-provisioning.md, including
+      # why engine/Dockerfile makes this directory world-writable rather
+      # than chowned to one side's non-root user.
+      - switchboard-db-data:/var/lib/switchboard/db
 
   # ---------------------------------------------------------------------
   # The Node.js control plane: REST API, WS event stream, SQLite, and the
@@ -98,6 +109,12 @@ services:
       # so switchboard-web's nginx, on the Docker network, can reach it.
       SWITCHBOARD_HOST: 0.0.0.0
       SWITCHBOARD_PORT: '3000'
+      # Filename ("switchboard.sqlite") must match the dbfile
+      # engine/config/res_config_sqlite3.conf points at — both resolve to
+      # the same switchboard-db-data volume, mounted at a different path on
+      # each container, so PJSIP realtime can read the trunks this API
+      # provisions (implementation.md feature 11). See
+      # documentation/dev/engine-provisioning.md.
       SWITCHBOARD_DATABASE_PATH: /app/data/switchboard.sqlite
       SWITCHBOARD_RECORDINGS_DIR: /app/recordings
       # switchboard-engine is this service's name on the `switchboard`
@@ -148,7 +165,11 @@ networks:
 volumes:
   # The SQLite database file. Named (not bind-mounted) so a fresh
   # `docker compose up` on any platform works with no host directory setup;
-  # `docker compose down -v` clears it for a clean-slate restart.
+  # `docker compose down -v` clears it for a clean-slate restart. Mounted on
+  # both switchboard-api (/app/data) and switchboard-engine
+  # (/var/lib/switchboard/db) so Asterisk's PJSIP realtime can read the
+  # trunks switchboard-api provisions — see
+  # documentation/dev/engine-provisioning.md.
   switchboard-db-data:
   # Call recordings (implementation.md feature 24). Shared between the
   # engine (which writes them via MixMonitor) and the API (which serves

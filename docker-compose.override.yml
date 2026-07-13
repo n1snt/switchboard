@@ -32,6 +32,15 @@ services:
       # (apps/server/src/config.ts) already land under the bind-mounted
       # apps/server/data and apps/server/recordings — visible directly on
       # the host, which is convenient for local development.
+      #
+      # KNOWN GAP (implementation.md feature 11, PJSIP realtime): this means
+      # dev-mode switchboard-api does NOT write to the switchboard-db-data
+      # named volume switchboard-engine reads for realtime trunk lookups
+      # (engine/config/res_config_sqlite3.conf) — it writes to
+      # apps/server/data/switchboard.sqlite on the host bind mount instead.
+      # Realtime-provisioned trunks will not be visible to the engine in
+      # this dev override until SWITCHBOARD_DATABASE_PATH is pointed at the
+      # shared volume here too. See documentation/dev/engine-provisioning.md.
       SWITCHBOARD_HOST: 0.0.0.0
     volumes:
       - .:/workspace:delegated

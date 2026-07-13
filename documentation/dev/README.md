@@ -13,6 +13,9 @@ Documentation for people building Switchboard. For using the tool, see the
   Asterisk REST Interface connection and call bridging.
 - [containers.md](containers.md): the three Docker images, their build stages, and
   the media and networking settings for Docker Compose.
+- [engine-provisioning.md](engine-provisioning.md): how trunks become live Asterisk
+  endpoints through PJSIP Realtime (the shared SQLite file, sorcery, and the
+  trunk-call dialplan).
 - [data-model.md](data-model.md): the SQLite storage schema for trunks, numbers,
   routes, calls, settings, and fault profiles.
 - [dashboard.md](dashboard.md): the dashboard screens, the softphone experience,

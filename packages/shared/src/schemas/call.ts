@@ -69,9 +69,30 @@ export const CallListQuerySchema = z.object({
   offset: z.coerce.number().int().min(0).default(0),
 });
 
+/** One signaling message in a call's SIP trace, for the call-ladder diagram. */
+export const SipTraceEntrySchema = z.object({
+  at: TimestampSchema.describe('When the message was observed.'),
+  direction: z
+    .enum(['incoming', 'outgoing'])
+    .describe('Relative to the engine: a received or a sent message.'),
+  method: z
+    .string()
+    .describe('SIP method or response, e.g. INVITE, 100, 180, 200, ACK, BYE.'),
+  summary: z.string().describe('A short human-readable line for the ladder.'),
+});
+
+/** A call plus its SIP trace (feature 23), returned by the detail endpoint. */
+export const CallDetailSchema = CallSchema.extend({
+  sip_trace: z
+    .array(SipTraceEntrySchema)
+    .describe('The captured SIP ladder for this call.'),
+}).describe('A call with its full SIP trace.');
+
 export type CallDirection = z.infer<typeof CallDirectionSchema>;
 export type CallState = z.infer<typeof CallStateSchema>;
 export type Call = z.infer<typeof CallSchema>;
+export type SipTraceEntry = z.infer<typeof SipTraceEntrySchema>;
+export type CallDetail = z.infer<typeof CallDetailSchema>;
 export type CallListQuery = z.input<typeof CallListQuerySchema>;
 
 export const CALL_EXAMPLE: Call = {

@@ -11,7 +11,13 @@ export default defineProject({
   // statements in the sourcemap that would break the 100% coverage gate. It
   // does not affect the generated route tree, so tests behave identically.
   plugins: [
-    TanStackRouterVite({ target: 'react', autoCodeSplitting: false }),
+    // Co-located route tests live under src/routes; tell the router plugin to
+    // ignore *.test.tsx so they are not mistaken for route files.
+    TanStackRouterVite({
+      target: 'react',
+      autoCodeSplitting: false,
+      routeFileIgnorePattern: '\\.test\\.',
+    }),
     react(),
   ],
   resolve: {

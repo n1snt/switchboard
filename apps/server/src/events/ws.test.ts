@@ -4,12 +4,10 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { WebSocket } from 'ws';
 import type { AddressInfo } from 'node:net';
-import type { FastifyInstance } from 'fastify';
 import type { CallEvent } from '@switchboard/shared';
 import { CALL_EXAMPLE } from '@switchboard/shared';
-import { buildApp } from '../app';
-import { loadConfig } from '../config';
-import { EventBus } from './bus';
+import { createTestApp, type TestApp } from '../testing/harness';
+import type { EventBus } from './bus';
 
 const event: CallEvent = {
   type: 'call.created',
@@ -17,20 +15,20 @@ const event: CallEvent = {
   call: CALL_EXAMPLE,
 };
 
-let app: FastifyInstance;
+let harness: TestApp;
 let bus: EventBus;
 let url: string;
 
 beforeAll(async () => {
-  bus = new EventBus();
-  app = await buildApp({ config: loadConfig({}), bus });
-  await app.listen({ host: '127.0.0.1', port: 0 });
-  const { port } = app.server.address() as AddressInfo;
+  harness = await createTestApp();
+  bus = harness.bus;
+  await harness.app.listen({ host: '127.0.0.1', port: 0 });
+  const { port } = harness.app.server.address() as AddressInfo;
   url = `ws://127.0.0.1:${port}/api/v1/events`;
 });
 
 afterAll(async () => {
-  await app.close();
+  await harness.close();
 });
 
 function once<T>(socket: WebSocket, resolve: (value: T) => void): void {

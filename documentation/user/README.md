@@ -76,16 +76,13 @@ These fill in as features are built. Each is first-class and example-driven. The
 label in parentheses is the implementation feature that delivers it (see the
 [developer roadmap](../dev/roadmap.md)).
 
-- Getting started: install, first call in both directions (features 9 to 20).
-- Trunks: create a SIP server, quick add versus the full carrier-style form, and
-  every field explained with examples (features 10 to 12).
-- Numbers: create DIDs and assign them to trunks (feature 14).
-- Placing and receiving calls: the dialler, the incoming-call notification, and
-  the in-call controls (features 16 to 20).
-- Call log and recording: filter history, read a SIP trace, download recordings
-  (features 22 to 24).
+- [Running with Docker](running-with-docker.md): `docker compose up`, the dev
+  override, and no-audio troubleshooting (feature 6).
+- [Using Switchboard](using-switchboard.md): trunks (quick add and the full form),
+  numbers, placing and receiving calls, the call log and SIP trace, recordings, and
+  settings, with dashboard steps and `curl` examples (features 10 to 25).
 - Environment configuration: every `SWITCHBOARD_*` variable with examples
-  (feature 13, and settings in feature 25).
+  (feature 13, and settings in feature 25); see the Docker guide above.
 - Fault injection: reproduce carrier failures on demand (features 26 and 27).
 - REST API reference: the API is self-documenting. Interactive Swagger UI is
   served at `/api/docs` and the raw OpenAPI 3 spec at `/api/v1/openapi.json` (both

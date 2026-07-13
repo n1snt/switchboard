@@ -19,7 +19,11 @@ import {
   RouteSchema,
   RouteUpdateSchema,
 } from './schemas/route';
-import { CallListQuerySchema, CallSchema } from './schemas/call';
+import {
+  CallDetailSchema,
+  CallListQuerySchema,
+  CallSchema,
+} from './schemas/call';
 import {
   FaultProfileCreateSchema,
   FaultProfileSchema,
@@ -180,9 +184,11 @@ export const callsContract = c.router({
   get: {
     method: 'GET',
     path: '/api/v1/calls/:id',
-    summary: 'Get a call',
+    summary: 'Get a call with its SIP trace',
+    description:
+      'The full call timeline, negotiated media, hangup cause, and SIP ladder.',
     pathParams: IdParams,
-    responses: { 200: CallSchema, 404: ErrorSchema },
+    responses: { 200: CallDetailSchema, 404: ErrorSchema },
   },
 });
 
